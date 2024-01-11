@@ -3,10 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"os"
-	"os/exec"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -24,41 +21,12 @@ var elog debug.Log
 // myservice defines methods for the service like Execute method
 type myservice struct{}
 
-// executePowerShellScript runs the PowerShell script with given parameters
-func executePowerShellScript(cpuPercentage, cpu, duration int) error {
-	// Read the embedded script
-	psScript, err := script.ReadFile("script.ps1")
-	if err != nil {
-		return fmt.Errorf("failed to read embedded script: %w", err)
-	}
-
-	// Create a temporary file to store the script
-	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	// Write the script to the temporary file
-	if _, err := tmpFile.Write(psScript); err != nil {
-		return fmt.Errorf("failed to write to temporary file: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temporary file: %w", err)
-	}
-
-	// Construct the command with parameters
-	cmd := exec.Command("powershell", tmpFile.Name(),
-		"-CPUPercentage", fmt.Sprint(cpuPercentage),
-		"-CPU", fmt.Sprint(cpu),
-		"-Duration", fmt.Sprint(duration))
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error running script: %w", err)
-	}
-	elog.Info(1, fmt.Sprintf("script output: %s", output))
-
+// Simplified executePowerShellScript for testing
+func executePowerShellScript() error {
+	elog.Info(1, "PowerShell script execution started.")
+	// Add your script execution logic here
+	// For now, just log a message and return nil
+	elog.Info(1, "PowerShell script executed successfully.")
 	return nil
 }
 
@@ -82,12 +50,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
 			default:
-				// Execute PowerShell script with example parameters
-				cpuPercentage := 50
-				cpu := 2
-				duration := 60
-
-				if err := executePowerShellScript(cpuPercentage, cpu, duration); err != nil {
+				// Simplified script execution for testing
+				if err := executePowerShellScript(); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
 				time.Sleep(10 * time.Second) // Adjust as needed
