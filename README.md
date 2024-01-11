@@ -12,6 +12,7 @@ windows-service.exe*
 #### Launch Service On Windows
 
 - Use Windows Service Control Manager to install the service
+- https://learn.microsoft.com/en-us/windows/win32/services/service-control-manager
 ```
 C:\Users\Administrator\Downloads>sc create MyService binPath= "C:\Users\Administrator\Downloads\windows-service.exe"
 [SC] CreateService SUCCESS
