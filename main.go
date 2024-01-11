@@ -36,6 +36,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
+	exit := make(chan struct{})
+
 	go func() {
 		for {
 			select {
@@ -45,22 +47,23 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					changes <- c.CurrentStatus
 				case svc.Stop, svc.Shutdown:
 					elog.Info(1, "Service is stopping.")
+					close(exit)
 					return
 				default:
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
-			default:
+			case <-time.After(10 * time.Second): // Adjust as needed
 				// Simplified script execution for testing
 				if err := executePowerShellScript(); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
-				time.Sleep(10 * time.Second) // Adjust as needed
 			}
 		}
 	}()
 
+	<-exit
 	changes <- svc.Status{State: svc.StopPending}
-	return
+	return false, 0
 }
 
 func main() {
