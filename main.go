@@ -109,14 +109,14 @@ func main() {
 		return
 	}
 
-	elog, err = eventlog.Open("myprogram")
+	elog, err = eventlog.Open("chaos")
 	if err != nil {
 		log.Fatalf("failed to open event log: %v", err)
 	}
 	defer elog.Close()
 
 	elog.Info(1, "Service is starting.")
-	err = svc.Run("myprogram", &myservice{})
+	err = svc.Run("chaos", &myservice{})
 	if err != nil {
 		elog.Error(1, fmt.Sprintf("Service failed: %v", err))
 	}
