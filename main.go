@@ -3,7 +3,10 @@ package main
 import (
 	"embed"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
+	"os/exec"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -21,15 +24,45 @@ var elog debug.Log
 // myservice defines methods for the service like Execute method
 type myservice struct{}
 
-// Simplified executePowerShellScript for testing
-func executePowerShellScript() error {
+// executePowerShellScript runs the PowerShell script with given parameters
+func executePowerShellScript(cpuPercentage, cpu, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
-	// Add your script execution logic here
-	// For now, just log a message and return nil
-	elog.Info(1, "PowerShell script executed successfully.")
+
+	// Read the embedded script
+	psScript, err := script.ReadFile("script.ps1")
+	if err != nil {
+		return fmt.Errorf("failed to read embedded script: %w", err)
+	}
+
+	// Create a temporary file to store the script
+	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// Write the script to the temporary file
+	if _, err := tmpFile.Write(psScript); err != nil {
+		return fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	// Construct the command with parameters
+	cmd := exec.Command("powershell", tmpFile.Name(),
+		"-CPUPercentage", fmt.Sprint(cpuPercentage),
+		"-CPU", fmt.Sprint(cpu),
+		"-Duration", fmt.Sprint(duration))
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running script: %w; output: %s", err, output)
+	}
+	elog.Info(1, fmt.Sprintf("script output: %s", output))
+
 	return nil
 }
-
 // Execute is the method called by the Windows service manager
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
@@ -54,7 +87,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 				}
 			case <-time.After(10 * time.Second): // Adjust as needed
 				// Simplified script execution for testing
-				if err := executePowerShellScript(); err != nil {
+				if err := executePowerShellScript(50,2,60); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
 			}
