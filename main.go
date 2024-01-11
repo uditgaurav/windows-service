@@ -76,7 +76,7 @@ func main() {
 		return
 	}
 
-	elog, err = eventlog.Open("chaos")
+	elog, err = eventlog.Open("chaos-engg")
 	if err != nil {
 		log.Fatalf("failed to open event log: %v", err)
 	}
