@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"time"
@@ -75,18 +76,21 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 				case svc.Interrogate:
 					changes <- c.CurrentStatus
 				case svc.Stop, svc.Shutdown:
+					elog.Info(1, "Service is stopping.")
 					return
 				default:
-					// Execute PowerShell script with example parameters
-					cpuPercentage := 50
-					cpu := 2
-					duration := 60
-
-					if err := executePowerShellScript(cpuPercentage, cpu, duration); err != nil {
-						elog.Error(1, fmt.Sprintf("error executing script: %v", err))
-					}
-					time.Sleep(30 * time.Second)
+					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
+			default:
+				// Execute PowerShell script with example parameters
+				cpuPercentage := 50
+				cpu := 2
+				duration := 60
+
+				if err := executePowerShellScript(cpuPercentage, cpu, duration); err != nil {
+					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
+				}
+				time.Sleep(10 * time.Second) // Adjust as needed
 			}
 		}
 	}()
@@ -98,21 +102,23 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 func main() {
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("failed to determine if we are running in an interactive session: %v", err))
-		return
+		log.Fatalf("failed to determine if we are running in an interactive session: %v", err)
 	}
 	if isIntSess {
+		log.Println("Running in an interactive session.")
 		return
 	}
 
 	elog, err = eventlog.Open("myprogram")
 	if err != nil {
-		return
+		log.Fatalf("failed to open event log: %v", err)
 	}
 	defer elog.Close()
 
+	elog.Info(1, "Service is starting.")
 	err = svc.Run("myprogram", &myservice{})
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("service failed: %v", err))
+		elog.Error(1, fmt.Sprintf("Service failed: %v", err))
 	}
+	elog.Info(1, "Service stopped.")
 }
