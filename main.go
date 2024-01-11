@@ -14,11 +14,9 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
-// Embed the PowerShell script
-//go:embed script.ps1
 var script embed.FS
 
-// Global variable for logging in the service
+// for logging in the service
 var elog debug.Log
 
 // myservice defines methods for the service like Execute method
@@ -28,20 +26,17 @@ type myservice struct{}
 func executePowerShellScript(cpuPercentage, cpu, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
-	// Read the embedded script
 	psScript, err := script.ReadFile("script.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to read embedded script: %w", err)
 	}
 
-	// Create a temporary file to store the script
 	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
-	// Write the script to the temporary file
 	if _, err := tmpFile.Write(psScript); err != nil {
 		return fmt.Errorf("failed to write to temporary file: %w", err)
 	}
@@ -49,7 +44,6 @@ func executePowerShellScript(cpuPercentage, cpu, duration int) error {
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	// Construct the command with parameters
 	cmd := exec.Command("powershell", tmpFile.Name(),
 		"-CPUPercentage", fmt.Sprint(cpuPercentage),
 		"-CPU", fmt.Sprint(cpu),
@@ -85,7 +79,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 				default:
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
-			case <-time.After(10 * time.Second): // Adjust as needed
+			case <-time.After(10 * time.Second):
 				// Simplified script execution for testing
 				if err := executePowerShellScript(50,2,60); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
