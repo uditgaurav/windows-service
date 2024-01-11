@@ -53,3 +53,12 @@ SERVICE_NAME: MyService
 C:\Users\Administrator\Downloads>sc delete MyService
 [SC] DeleteService SUCCESS
 ```
+
+### TBD
+
+- Batch script for installation of the service in Administrator mode.
+- Pass flags to the service for input or override the chaos parameters.
+- Proper event logging in windows eventviewer.
+- Service Management - that is via manual trigger or system trigger.
+- Once the agent is running it should be able to run the powershell script in administrator mode.
+- Cleanup script.
