@@ -86,7 +86,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
 			case <-time.After(10 * time.Second):
-				if err := executePowerShellScript(ctx, 50, "C:\\", 60); err != nil {
+				if err := executePowerShellScript(ctx, 50, "C:\\Testlimit", 60); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
 			}
