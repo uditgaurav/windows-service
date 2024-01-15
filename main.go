@@ -22,9 +22,7 @@ var script embed.FS
 var elog debug.Log
 
 // myservice defines methods for the service like Execute method
-type myservice struct {
-	shouldStart bool
-}
+type myservice struct{}
 
 const serviceName = "chaos"
 
@@ -66,9 +64,6 @@ func executePowerShellScript(ctx context.Context, cpuPercentage int, path string
 
 // Execute is the method called by the Windows service manager
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
-	if !m.shouldStart {
-		return false, 1
-	}
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -104,8 +99,6 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 }
 
 func main() {
-	mySvc := &myservice{shouldStart: true}
-
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		log.Fatalf("failed to determine if we are running in an interactive session: %v", err)
@@ -126,7 +119,7 @@ func main() {
 		errorMessage := "All the prerequisites are not met: Testlimit is not available on the machine."
 		elog.Error(1, errorMessage)
 		log.Fatal(errorMessage)
-		mySvc.shouldStart = false
+		return
 	}
 
 	elog.Info(1, "Service is starting.")
