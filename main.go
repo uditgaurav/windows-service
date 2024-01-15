@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
+//go:embed script.ps1
 var script embed.FS
 
 // for logging in the service
