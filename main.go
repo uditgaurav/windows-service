@@ -22,7 +22,11 @@ var script embed.FS
 var elog debug.Log
 
 // myservice defines methods for the service like Execute method
-type myservice struct{}
+type myservice struct {
+	shouldStart bool
+}
+
+const serviceName = "chaos"
 
 // executePowerShellScript runs the PowerShell script with given parameters
 func executePowerShellScript(ctx context.Context, cpuPercentage int, path string, duration int) error {
@@ -62,6 +66,9 @@ func executePowerShellScript(ctx context.Context, cpuPercentage int, path string
 
 // Execute is the method called by the Windows service manager
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
+	if !m.shouldStart {
+		return false, 1
+	}
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -97,6 +104,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 }
 
 func main() {
+	mySvc := &myservice{shouldStart: true}
+
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		log.Fatalf("failed to determine if we are running in an interactive session: %v", err)
@@ -113,11 +122,12 @@ func main() {
 	defer elog.Close()
 
 	// Validation 1
-    if !isTestlimitAvailable() {
-        errorMessage := "All the prerequisites are not met: Testlimit is not available on the machine."
-        elog.Error(1, errorMessage)
-        log.Fatal(errorMessage)
-    }
+	if !isTestlimitAvailable() {
+		errorMessage := "All the prerequisites are not met: Testlimit is not available on the machine."
+		elog.Error(1, errorMessage)
+		log.Fatal(errorMessage)
+		mySvc.shouldStart = false
+	}
 
 	elog.Info(1, "Service is starting.")
 	err = svc.Run("chaos", &myservice{})
@@ -129,9 +139,9 @@ func main() {
 
 // isTestlimitAvailable checks if Testlimit CLI tool is available on the system
 func isTestlimitAvailable() bool {
-    cmd := exec.Command("Testlimit", "-?")
-    if err := cmd.Run(); err != nil {
-        return false
-    }
-    return true
+	cmd := exec.Command("Testlimit", "-?")
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
 }
