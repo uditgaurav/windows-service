@@ -1,77 +1,48 @@
-param(
-    [Int32]$CPUPercentage = 0,
-    [Int32]$CPU = 1,
-    [Int32]$Duration = 60
+param (
+    [Parameter(Mandatory=$false)]
+    [int]$MemoryInPercentage = 50,
+
+    [Parameter(Mandatory=$false)]
+    [int]$Duration = 60,
+
+    [Parameter(Mandatory=$false)]
+    [int]$MemoryConsumption,
+
+    [Parameter(Mandatory=$false)]
+    [string]$PathOfTestlimit
 )
 
 try {
     Set-StrictMode -Version 2.0
+    $Date = Get-Date
+    $Seconds = $Duration
+    $EndTime = $Date.AddSeconds($Seconds)
 
-    if ($CPUPercentage -ne 0) {
-        Write-Host "The value is not equal to zero"
-        # Get the number of logical processors (cores) on the machine
-        $cores = (Get-WmiObject Win32_Processor).NumberOfLogicalProcessors
+    Write-Host "Starting Chaos injection... Seconds: $Seconds, MemoryInPercentage: $MemoryInPercentage, PathOfTestlimit: $PathOfTestlimit, MemoryConsumption: $MemoryConsumption"
 
-        # Calculate the number of cores needed to achieve the desired CPU utilization percentage
-        $CPU = [Math]::Round($cores * $CPUPercentage / 100)
-        if ($CPU -eq 0) {
-            $CPU = 1
-        }
-        Write-Host "The number of CPU cores to be consumed is: $CPU"
+    if ($MemoryInPercentage -ne 0) {
+        $CompObject = Get-WmiObject -Class WIN32_OperatingSystem
+        $TotalAvailableMemory = $CompObject.FreePhysicalMemory / 1024
+        $MemoryToConsume = $TotalAvailableMemory * ($MemoryInPercentage / 100)
+        Write-Host "Memory To Consume $MemoryInPercentage % that is:" $MemoryToConsume
+        Start-Process Testlimit64.exe -ArgumentList "-d -c $MemoryToConsume" -WorkingDirectory $PathOfTestlimit
+    }
+    elseif ($MemoryConsumption -ne $null) {
+        Write-Host "Memory To Consume: $MemoryConsumption"
+        Start-Process Testlimit64.exe -ArgumentList "-d -c $MemoryConsumption" -WorkingDirectory $PathOfTestlimit
     }
 
-    if ($CPU -eq 0) {
-        Write-Host "The value is equal to zero"
-        $NumberOfLogicalProcessors = Get-WmiObject win32_processor | Select-Object -ExpandProperty NumberOfLogicalProcessors
-        ForEach ($core in 1..$NumberOfLogicalProcessors){
-            Start-Job -Name "ChaosCpu$core" -ScriptBlock {
-                $result = 1
-                ForEach ($loopnumber in 1..2147483647){
-                    $result = 1
-                    ForEach ($loopnumber1 in 1..2147483647){
-                        $result = 1
-                        ForEach($number in 1..2147483647){
-                            $result = $result * $number
-                        }
-                    }
-                }
-            } | Out-Null
-            Write-Host "Started Job ChaosCpu$core"
-        }
-    } else {
-        ForEach ($core in 1..$CPU){
-            Start-Job -Name "ChaosCpu$core" -ScriptBlock {
-                $result = 1
-                ForEach ($loopnumber in 1..2147483647){
-                    $result = 1
-                    ForEach ($loopnumber1 in 1..2147483647){
-                        $result = 1
-                        ForEach($number in 1..2147483647){
-                            $result = $result * $number
-                        }
-                    }
-                }
-            } | Out-Null
-            Write-Host "Started Job ChaosCpu$core"
-        }
-    }
+    Write-Host "Chaos started, wait for chaos duration of $Seconds s"
 
-    Write-Host "About to sleep for $Duration seconds"
-    $totalduration = $Duration
-    Start-Sleep -Seconds ($totalduration/2)
-    Get-WmiObject Win32_Processor | Select-Object LoadPercentage | Format-List
-    Start-Sleep -Seconds ($totalduration/2)
-    Get-WmiObject Win32_Processor | Select-Object LoadPercentage | Format-List
-
-    Write-Host "About to stop jobs"
-    $cpuJobs = Get-Job -Name "ChaosCpu*"
-    ForEach ($job in $cpuJobs) {
-        Stop-Job -Name $job.Name | Out-Null
-        Write-Host "Stopped $($job.Name)"
-        Remove-Job -Name $job.Name | Out-Null
-        Write-Host "Removed $($job.Name)"
+    Do {
+        Start-Sleep -Seconds 1
     }
-} catch {
+    Until ((Get-Date) -ge $EndTime)
+
+    Get-Process | Where-Object {$_.Name -eq "Testlimit64"} | Stop-Process
+    Write-Host "Chaos completed!!!"
+}
+catch {
     Write-Error $_.Exception
     Exit 1
 }

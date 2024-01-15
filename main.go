@@ -25,7 +25,7 @@ var elog debug.Log
 type myservice struct{}
 
 // executePowerShellScript runs the PowerShell script with given parameters
-func executePowerShellScript(ctx context.Context, cpuPercentage, cpu, duration int) error {
+func executePowerShellScript(ctx context.Context, cpuPercentage int, path string, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
 	psScript, err := script.ReadFile("script.ps1")
@@ -47,8 +47,8 @@ func executePowerShellScript(ctx context.Context, cpuPercentage, cpu, duration i
 	}
 
 	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
-		"-CPUPercentage", fmt.Sprint(cpuPercentage),
-		"-CPU", fmt.Sprint(cpu),
+		"-MemoryInPercentage", fmt.Sprint(cpuPercentage),
+		"-PathOfTestlimit", fmt.Sprint(path),
 		"-Duration", fmt.Sprint(duration))
 
 	output, err := cmd.CombinedOutput()
@@ -84,7 +84,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
 			case <-time.After(10 * time.Second):
-				if err := executePowerShellScript(ctx, 50, 2, 60); err != nil {
+				if err := executePowerShellScript(ctx, 50, "C:\\", 60); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
 			}
@@ -112,10 +112,26 @@ func main() {
 	}
 	defer elog.Close()
 
+	// Validation 1
+    if !isTestlimitAvailable() {
+        errorMessage := "All the prerequisites are not met: Testlimit is not available on the machine."
+        elog.Error(1, errorMessage)
+        log.Fatal(errorMessage)
+    }
+
 	elog.Info(1, "Service is starting.")
 	err = svc.Run("chaos", &myservice{})
 	if err != nil {
 		elog.Error(1, fmt.Sprintf("Service failed: %v", err))
 	}
 	elog.Info(1, "Service stopped.")
+}
+
+// isTestlimitAvailable checks if Testlimit CLI tool is available on the system
+func isTestlimitAvailable() bool {
+    cmd := exec.Command("Testlimit", "-?")
+    if err := cmd.Run(); err != nil {
+        return false
+    }
+    return true
 }
