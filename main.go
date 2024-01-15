@@ -27,7 +27,7 @@ type myservice struct{}
 const serviceName = "chaos"
 
 // executePowerShellScript runs the PowerShell script with given parameters
-func executePowerShellScript(ctx context.Context, cpuPercentage int, path string, duration int) error {
+func executePowerShellScript(ctx context.Context, memoryPercentage int, path string, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
 	psScript, err := script.ReadFile("script.ps1")
@@ -49,7 +49,7 @@ func executePowerShellScript(ctx context.Context, cpuPercentage int, path string
 	}
 
 	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
-		"-MemoryInPercentage", fmt.Sprint(cpuPercentage),
+		"-MemoryInPercentage", fmt.Sprint(memoryPercentage),
 		"-PathOfTestlimit", fmt.Sprint(path),
 		"-Duration", fmt.Sprint(duration))
 
@@ -113,6 +113,8 @@ func main() {
 		log.Fatalf("failed to open event log: %v", err)
 	}
 	defer elog.Close()
+
+	elog.Info(1, "checking prerequisites")
 
 	// Validation 1
 	if !isTestlimitAvailable() {
