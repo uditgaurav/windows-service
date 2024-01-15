@@ -9,6 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -26,15 +29,25 @@ type myservice struct{}
 
 const serviceName = "chaos"
 
-// executePowerShellScript runs the PowerShell script with given parameters
+const (
+	SW_SHOW = 5
+)
+
+var (
+	shell32      = windows.NewLazySystemDLL("shell32.dll")
+	shellExecute = shell32.NewProc("ShellExecuteW")
+)
+
 func executePowerShellScript(ctx context.Context, memoryPercentage int, path string, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
+	// Read the embedded PowerShell script
 	psScript, err := script.ReadFile("script.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to read embedded script: %w", err)
 	}
 
+	// Write the script to a temporary file
 	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
@@ -48,16 +61,15 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
-		"-MemoryInPercentage", fmt.Sprint(memoryPercentage),
-		"-PathOfTestlimit", fmt.Sprint(path),
-		"-Duration", fmt.Sprint(duration))
+	// Prepare parameters for the script
+	parameters := fmt.Sprintf("-MemoryInPercentage %d -PathOfTestlimit %s -Duration %d", memoryPercentage, path, duration)
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
+	// Execute the script with administrative privileges
+	if err := executePowerShellScriptAsAdmin(tmpFile.Name(), parameters); err != nil {
+		return fmt.Errorf("error running script with admin privileges: %w", err)
 	}
-	elog.Info(1, fmt.Sprintf("script output: %s", output))
+
+	elog.Info(1, "PowerShell script executed with admin privileges.")
 
 	return nil
 }
@@ -139,4 +151,24 @@ func isTestlimitAvailable() bool {
 		return false
 	}
 	return true
+}
+
+func executePowerShellScriptAsAdmin(scriptPath string, parameters string) error {
+	verb := "runas"
+	file := "powershell"
+	lpParameters := "-File " + scriptPath + " " + parameters
+
+	ret, _, err := shellExecute.Call(0,
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(verb))),
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(file))),
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(lpParameters))),
+		0,
+		uintptr(SW_SHOW),
+	)
+
+	if int(ret) <= 32 {
+		return fmt.Errorf("failed to start process with ShellExecute: %v", err)
+	}
+
+	return nil
 }
