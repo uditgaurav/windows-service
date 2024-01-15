@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"fmt"
@@ -51,26 +50,27 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	// PowerShell command to run your script as admin
-	cmdString := fmt.Sprintf("Start-Process PowerShell -Verb RunAs -ArgumentList '-File \"%s\", \"-MemoryInPercentage %d\", \"-PathOfTestlimit %s\", \"-Duration %d\"' -Wait -PassThru 2>&1", tmpFile.Name(), memoryPercentage, path, duration)
+	// Specify the output file path for the script's output
+	outputFile := "C:\\Users\\Administrator\\Downloads>\\outputfile.txt"
+	defer os.Remove(outputFile)
+
+	// PowerShell command to run your script as admin and redirect output to a file
+	cmdString := fmt.Sprintf("Start-Process PowerShell -Verb RunAs -ArgumentList '-File \"%s\", \"-MemoryInPercentage %d\", \"-PathOfTestlimit %s\", \"-Duration %d\" > \"%s\"' -Wait", tmpFile.Name(), memoryPercentage, path, duration, outputFile)
 
 	// Execute the elevation command directly
 	cmd := exec.CommandContext(ctx, "powershell", "-Command", cmdString)
 
-	// Combining standard output and standard error
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error running script with elevation: %w", err)
+	}
 
-	err = cmd.Run()
+	// Read the output from the output file
+	scriptOutput, err := ioutil.ReadFile(outputFile)
 	if err != nil {
-		return fmt.Errorf("error running script with elevation: %w; stdout: %s; stderr: %s", err, stdoutBuf.String(), stderrBuf.String())
+		return fmt.Errorf("failed to read script output file: %w", err)
 	}
 
-	elog.Info(1, fmt.Sprintf("script output: %s", stdoutBuf.String()))
-	if stderrBuf.Len() > 0 {
-		elog.Info(1, fmt.Sprintf("script error output: %s", stderrBuf.String()))
-	}
+	elog.Info(1, fmt.Sprintf("script output: %s", string(scriptOutput)))
 
 	return nil
 }
