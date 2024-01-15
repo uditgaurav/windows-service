@@ -51,7 +51,7 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 	}
 
 	// Specify the output file path for the script's output
-	outputFile := "C:\\Users\\Administrator\\Downloads>\\outputfile.txt"
+	outputFile := "C:\\Users\\Administrator\\Downloads\\outputfile.txt"
 	defer os.Remove(outputFile)
 
 	// PowerShell command to run your script as admin and redirect output to a file
