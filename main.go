@@ -134,7 +134,7 @@ func main() {
 
 // isTestlimitAvailable checks if Testlimit CLI tool is available on the system
 func isTestlimitAvailable() bool {
-	cmd := exec.Command("Testlimit", "-?")
+	cmd := exec.Command("Testlimit")
 	if err := cmd.Run(); err != nil {
 		return false
 	}
