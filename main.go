@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io/ioutil"
@@ -23,7 +24,7 @@ var elog debug.Log
 type myservice struct{}
 
 // executePowerShellScript runs the PowerShell script with given parameters
-func executePowerShellScript(cpuPercentage, cpu, duration int) error {
+func executePowerShellScript(ctx context.Context, cpuPercentage, cpu, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
 	psScript, err := script.ReadFile("script.ps1")
@@ -44,26 +45,28 @@ func executePowerShellScript(cpuPercentage, cpu, duration int) error {
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	cmd := exec.Command("powershell", tmpFile.Name(),
+	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
 		"-CPUPercentage", fmt.Sprint(cpuPercentage),
 		"-CPU", fmt.Sprint(cpu),
 		"-Duration", fmt.Sprint(duration))
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error running script: %w; output: %s", err, output)
+		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
 	}
 	elog.Info(1, fmt.Sprintf("script output: %s", output))
 
 	return nil
 }
+
 // Execute is the method called by the Windows service manager
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	exit := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
 		for {
@@ -74,21 +77,20 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					changes <- c.CurrentStatus
 				case svc.Stop, svc.Shutdown:
 					elog.Info(1, "Service is stopping.")
-					close(exit)
+					cancel()
 					return
 				default:
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
 			case <-time.After(10 * time.Second):
-				// Simplified script execution for testing
-				if err := executePowerShellScript(50,2,60); err != nil {
+				if err := executePowerShellScript(ctx, 50, 2, 60); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
 			}
 		}
 	}()
 
-	<-exit
+	<-ctx.Done()
 	changes <- svc.Status{State: svc.StopPending}
 	return false, 0
 }
