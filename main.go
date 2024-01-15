@@ -26,21 +26,23 @@ type myservice struct{}
 
 const serviceName = "chaos"
 
-// executePowerShellScript runs the PowerShell script with given parameters
 func executePowerShellScript(ctx context.Context, memoryPercentage int, path string, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
+	// Read the embedded PowerShell script
 	psScript, err := script.ReadFile("script.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to read embedded script: %w", err)
 	}
 
+	// Create a temporary file for the embedded script
 	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
+	// Write the embedded script to the temporary file
 	if _, err := tmpFile.Write(psScript); err != nil {
 		return fmt.Errorf("failed to write to temporary file: %w", err)
 	}
@@ -48,16 +50,32 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
-		"-MemoryInPercentage", fmt.Sprint(memoryPercentage),
-		"-PathOfTestlimit", fmt.Sprint(path),
-		"-Duration", fmt.Sprint(duration))
+	// PowerShell command to run your script as admin
+	elevationCmd := fmt.Sprintf("Start-Process PowerShell -Verb RunAs -ArgumentList '-File \"%s\", \"-MemoryInPercentage %d\", \"-PathOfTestlimit %s\", \"-Duration %d\"'", tmpFile.Name(), memoryPercentage, path, duration)
+
+	// Create a new temporary file for the elevation script
+	elevationScriptFile, err := ioutil.TempFile("", "elevation-*.ps1")
+	if err != nil {
+		return fmt.Errorf("failed to create elevation script file: %w", err)
+	}
+	defer os.Remove(elevationScriptFile.Name())
+
+	// Write the elevation command to the new file
+	if _, err := elevationScriptFile.WriteString(elevationCmd); err != nil {
+		return fmt.Errorf("failed to write to elevation script file: %w", err)
+	}
+	if err := elevationScriptFile.Close(); err != nil {
+		return fmt.Errorf("failed to close elevation script file: %w", err)
+	}
+
+	// Execute the elevation script
+	cmd := exec.CommandContext(ctx, "powershell", elevationScriptFile.Name())
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
+		return fmt.Errorf("error running elevation script: %w; output: %s", err, string(output))
 	}
-	elog.Info(1, fmt.Sprintf("script output: %s", output))
+	elog.Info(1, fmt.Sprintf("elevation script output: %s", output))
 
 	return nil
 }
