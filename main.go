@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
@@ -51,31 +52,25 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 	}
 
 	// PowerShell command to run your script as admin
-	elevationCmd := fmt.Sprintf("Start-Process PowerShell -Verb RunAs -ArgumentList '-File \"%s\", \"-MemoryInPercentage %d\", \"-PathOfTestlimit %s\", \"-Duration %d\"'", tmpFile.Name(), memoryPercentage, path, duration)
+	cmdString := fmt.Sprintf("Start-Process PowerShell -Verb RunAs -ArgumentList '-File \"%s\", \"-MemoryInPercentage %d\", \"-PathOfTestlimit %s\", \"-Duration %d\"' -Wait -PassThru 2>&1", tmpFile.Name(), memoryPercentage, path, duration)
 
-	// Create a new temporary file for the elevation script
-	elevationScriptFile, err := ioutil.TempFile("", "elevation-*.ps1")
+	// Execute the elevation command directly
+	cmd := exec.CommandContext(ctx, "powershell", "-Command", cmdString)
+
+	// Combining standard output and standard error
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to create elevation script file: %w", err)
-	}
-	defer os.Remove(elevationScriptFile.Name())
-
-	// Write the elevation command to the new file
-	if _, err := elevationScriptFile.WriteString(elevationCmd); err != nil {
-		return fmt.Errorf("failed to write to elevation script file: %w", err)
-	}
-	if err := elevationScriptFile.Close(); err != nil {
-		return fmt.Errorf("failed to close elevation script file: %w", err)
+		return fmt.Errorf("error running script with elevation: %w; stdout: %s; stderr: %s", err, stdoutBuf.String(), stderrBuf.String())
 	}
 
-	// Execute the elevation script
-	cmd := exec.CommandContext(ctx, "powershell", elevationScriptFile.Name())
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error running elevation script: %w; output: %s", err, string(output))
+	elog.Info(1, fmt.Sprintf("script output: %s", stdoutBuf.String()))
+	if stderrBuf.Len() > 0 {
+		elog.Info(1, fmt.Sprintf("script error output: %s", stderrBuf.String()))
 	}
-	elog.Info(1, fmt.Sprintf("elevation script output: %s", output))
 
 	return nil
 }
