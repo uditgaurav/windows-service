@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"fmt"
@@ -27,23 +26,21 @@ type myservice struct{}
 
 const serviceName = "chaos"
 
+// executePowerShellScript runs the PowerShell script with given parameters
 func executePowerShellScript(ctx context.Context, memoryPercentage int, path string, duration int) error {
 	elog.Info(1, "PowerShell script execution started.")
 
-	// Read the embedded PowerShell script
 	psScript, err := script.ReadFile("script.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to read embedded script: %w", err)
 	}
 
-	// Create a temporary file for the embedded script
 	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	defer os.Remove(tmpFile.Name())
 
-	// Write the embedded script to the temporary file
 	if _, err := tmpFile.Write(psScript); err != nil {
 		return fmt.Errorf("failed to write to temporary file: %w", err)
 	}
@@ -51,23 +48,16 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	// PowerShell command to run your script as admin
-	cmdString := fmt.Sprintf("Start-Process PowerShell -Verb RunAs -ArgumentList '-File \"%s\", \"-MemoryInPercentage %d\", \"-PathOfTestlimit %s\", \"-Duration %d\"'", tmpFile.Name(), memoryPercentage, path, duration)
+	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
+		"-MemoryInPercentage", fmt.Sprint(memoryPercentage),
+		"-PathOfTestlimit", fmt.Sprint(path),
+		"-Duration", fmt.Sprint(duration))
 
-	// Execute the elevation command directly
-	cmd := exec.CommandContext(ctx, "powershell", "-Command", cmdString)
-
-	// Capture the standard output
-	var stdoutBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error running script with elevation: %w", err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
 	}
-
-	// Read the output from the buffer
-	scriptOutput := stdoutBuf.String()
-	elog.Info(1, fmt.Sprintf("script output: %s", scriptOutput))
+	elog.Info(1, fmt.Sprintf("script output: %s", output))
 
 	return nil
 }
