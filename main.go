@@ -15,22 +15,27 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
-//go:embed script.ps1
-var script embed.FS
+//go:embed scripts/*
+var scripts embed.FS
 
-// for logging in the service
 var elog debug.Log
 
-// myservice defines methods for the service like Execute method
 type myservice struct{}
 
 const serviceName = "chaos"
 
-// executePowerShellScript runs the PowerShell script with given parameters
-func executePowerShellScript(ctx context.Context, memoryPercentage int, path string, duration int) error {
+type ScriptParams struct {
+	MemoryPercentage int
+	CPUPercentage    int
+	CPU              int
+	Path             string
+	Duration         int
+}
+
+func executePowerShellScript(ctx context.Context, scriptName string, params ScriptParams) error {
 	elog.Info(1, "PowerShell script execution started.")
 
-	psScript, err := script.ReadFile("script.ps1")
+	psScript, err := scripts.ReadFile("scripts/" + scriptName)
 	if err != nil {
 		return fmt.Errorf("failed to read embedded script: %w", err)
 	}
@@ -48,11 +53,32 @@ func executePowerShellScript(ctx context.Context, memoryPercentage int, path str
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "powershell", tmpFile.Name(),
-		"-MemoryInPercentage", fmt.Sprint(memoryPercentage),
-		"-PathOfTestlimit", fmt.Sprint(path),
-		"-Duration", fmt.Sprint(duration))
+	var cmd *exec.Cmd
+	var cmdArgs []string
 
+	switch scriptName {
+	case "memory-stress.ps1":
+
+		cmdArgs = []string{
+			tmpFile.Name(),
+			"-MemoryInPercentage", fmt.Sprint(params.MemoryPercentage),
+			"-PathOfTestlimit", params.Path,
+			"-Duration", fmt.Sprint(params.Duration),
+		}
+
+	case "cpu-stress.ps1":
+
+		cmdArgs = []string{
+			tmpFile.Name(),
+			"-CPUPercentage", fmt.Sprint(params.CPUPercentage),
+			"-CPU", fmt.Sprint(params.CPU),
+			"-Duration", fmt.Sprint(params.Duration),
+		}
+
+	default:
+		return fmt.Errorf("unknown script name: %s", scriptName)
+	}
+	cmd = exec.CommandContext(ctx, "powershell", cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
@@ -86,7 +112,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 				}
 			case <-time.After(10 * time.Second):
-				if err := executePowerShellScript(ctx, 50, "C:\\Testlimit", 60); err != nil {
+				params := ScriptParams{MemoryPercentage: 50, Path: "C:\\Testlimit", Duration: 60}
+				if err := executePowerShellScript(ctx, "memory-stress.ps1", params); err != nil {
 					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
 				}
 			}
