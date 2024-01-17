@@ -33,7 +33,7 @@ type ScriptParams struct {
 }
 
 func executePowerShellScript(ctx context.Context, scriptName string, params ScriptParams) error {
-	elog.Info(1, "PowerShell script execution started.")
+	logs("PowerShell", "script execution started", false, 1)
 
 	psScript, err := scripts.ReadFile("scripts/" + scriptName)
 	if err != nil {
@@ -83,7 +83,7 @@ func executePowerShellScript(ctx context.Context, scriptName string, params Scri
 	if err != nil {
 		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
 	}
-	elog.Info(1, fmt.Sprintf("script output: %s", output))
+	logs("PowerShell", fmt.Sprintf("script output: %s", output), false, 1)
 
 	return nil
 }
@@ -105,16 +105,16 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 				case svc.Interrogate:
 					changes <- c.CurrentStatus
 				case svc.Stop, svc.Shutdown:
-					elog.Info(1, "Service is stopping.")
+					logs("Service", "Service is stopping", false, 1)
 					cancel()
 					return
 				default:
-					elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
+					logs("Service", fmt.Sprintf("unexpected control request #%d", c), true, 1)
 				}
 			case <-time.After(10 * time.Second):
 				params := ScriptParams{MemoryPercentage: 50, Path: "C:\\Testlimit", Duration: 60}
 				if err := executePowerShellScript(ctx, "memory-stress.ps1", params); err != nil {
-					elog.Error(1, fmt.Sprintf("error executing script: %v", err))
+					logs("PowerShell", fmt.Sprintf("error executing script: %v", err), true, 1)
 				}
 			}
 		}
@@ -135,28 +135,26 @@ func main() {
 		return
 	}
 
-	elog, err = eventlog.Open("chaos-engg")
+	elog, err = eventlog.Open("windows-chaos-agent")
 	if err != nil {
 		log.Fatalf("failed to open event log: %v", err)
 	}
 	defer elog.Close()
 
-	elog.Info(1, "checking prerequisites")
-
 	// Validation 1
 	if !isTestlimitAvailable() {
 		errorMessage := "All the prerequisites are not met: Testlimit is not available on the machine."
-		elog.Error(1, errorMessage)
+		logs("PreHookValidation", errorMessage, true, 1)
 		log.Fatal(errorMessage)
 		return
 	}
 
-	elog.Info(1, "Service is starting.")
+	logs("Service", "Service is starting", false, 1)
 	err = svc.Run("chaos", &myservice{})
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("Service failed: %v", err))
+		logs("Service", fmt.Sprintf("Service failed: %v", err), true, 1)
 	}
-	elog.Info(1, "Service stopped.")
+	logs("Service", "Service stopped", false, 1)
 }
 
 // isTestlimitAvailable checks if Testlimit CLI tool is available on the system
@@ -166,4 +164,13 @@ func isTestlimitAvailable() bool {
 		return false
 	}
 	return true
+}
+
+func logs(source, message string, isError bool, eventID uint32) {
+	fullMessage := fmt.Sprintf("[%s] %s", source, message)
+	if isError {
+		elog.Error(eventID, fullMessage)
+	} else {
+		elog.Info(eventID, fullMessage)
+	}
 }
