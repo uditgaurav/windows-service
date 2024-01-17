@@ -14,12 +14,12 @@ windows-service.exe*
 - Use Windows Service Control Manager to install the service
 - https://learn.microsoft.com/en-us/windows/win32/services/service-control-manager
 ```
-C:\Users\Administrator\Downloads>sc create MyService binPath= "C:\Users\Administrator\Downloads\windows-service.exe"
+C:\Users\Administrator\Downloads>sc create WindowsChaosAgent binPath= "C:\Users\Administrator\Downloads\windows-chaos-agent.exe"
 [SC] CreateService SUCCESS
 
-C:\Users\Administrator\Downloads>sc start MyService
+C:\Users\Administrator\Downloads>sc start WindowsChaosAgent
 
-SERVICE_NAME: MyService
+SERVICE_NAME: WindowsChaosAgent
         TYPE               : 10  WIN32_OWN_PROCESS
         STATE              : 2  START_PENDING
                                 (NOT_STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
@@ -36,9 +36,9 @@ SERVICE_NAME: MyService
 #### Get the status of the service
 
 ```
-C:\Users\Administrator\Downloads>sc query MyService
+C:\Users\Administrator\Downloads>sc query WindowsChaosAgent
 
-SERVICE_NAME: MyService
+SERVICE_NAME: WindowsChaosAgent
         TYPE               : 10  WIN32_OWN_PROCESS
         STATE              : 4  RUNNING
                                 (STOPPABLE, NOT_PAUSABLE, ACCEPTS_SHUTDOWN)
@@ -51,7 +51,7 @@ SERVICE_NAME: MyService
 #### Delete the service
 
 ```
-C:\Users\Administrator\Downloads>sc delete MyService
+C:\Users\Administrator\Downloads>sc delete WindowsChaosAgent
 [SC] DeleteService SUCCESS
 ```
 
