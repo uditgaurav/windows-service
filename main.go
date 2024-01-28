@@ -112,7 +112,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					logs("Service", fmt.Sprintf("unexpected control request #%d", c), true, 1)
 				}
 			case <-time.After(10 * time.Second):
-				params := ScriptParams{MemoryPercentage: 50, Path: "C:\\Testlimit", Duration: 60}
+				params := ScriptParams{MemoryPercentage: 50, Path: "C:\\HCE\\Testlimit", Duration: 60}
 				if err := executePowerShellScript(ctx, "memory-stress.ps1", params); err != nil {
 					logs("PowerShell", fmt.Sprintf("error executing script: %v", err), true, 1)
 				}

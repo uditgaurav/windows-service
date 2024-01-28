@@ -1,13 +1,31 @@
- # Check for administrative privileges
-$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
-if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "This script requires administrative privileges."
+ param (
+    [string]$AdminUser = ".\Administrator",
+    [Parameter(Mandatory=$true)]
+    [string]$AdminPass
+)
+
+# Convert the password from a plain string to a secure string
+$secureAdminPass = ConvertTo-SecureString $AdminPass -AsPlainText -Force
+
+try {
+    # Check for administrative privileges
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
+    if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        throw "This script requires administrative privileges."
+    }
+
+    # Base path for all dependencies
+    $chaosBasePath = "C:\HCE"
+
+    # Create base path directory if it doesn't exist
+    if (-not (Test-Path $chaosBasePath)) {
+        New-Item -Path $chaosBasePath -ItemType Directory
+    }
+} catch {
+    Write-Error "Error in setting up base path: $_"
     exit
 }
-
-# Base path for all dependencies
-$chaosBasePath = "$env:USERPROFILE\Downloads\chaos"
 
 # Dependencies, service binary, and their names
 $tools = @(
@@ -35,77 +53,60 @@ $tools = @(
 )
 
 $serviceBinary = @{
-    Name = "windows-chaos-agent";
-    DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/bin/windows-chaos-agent.exe";
-    Path = "$chaosBasePath\windows-chaos-agent.exe"
+    Name = "windows-chaos-infrastructure";
+    DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/bin/windows-chaos-infrastructure.exe";
+    Path = "$chaosBasePath\windows-chaos-infrastructure.exe"
 }
 
-# Create base path directory if it doesn't exist
-if (-not (Test-Path $chaosBasePath)) {
-    New-Item -Path $chaosBasePath -ItemType Directory
-}
-
-# Download and extract each tool, then add its path to the system PATH variable
 foreach ($tool in $tools) {
-    if (-not (Test-Path $tool.Destination)) {
-        Write-Host ("Downloading {0}..." -f $tool.Name)
-        Invoke-WebRequest -Uri $tool.DownloadUrl -OutFile $tool.Destination
-        Write-Host ("Extracting {0}..." -f $tool.Name)
-        Expand-Archive -Path $tool.Destination -DestinationPath $tool.ExractPath -Force
+    try {
+        if (-not (Test-Path $tool.Destination)) {
+            Write-Host ("Downloading {0}..." -f $tool.Name)
+            Invoke-WebRequest -Uri $tool.DownloadUrl -OutFile $tool.Destination -ErrorAction Stop
+            Write-Host ("Extracting {0}..." -f $tool.Name)
+            Expand-Archive -Path $tool.Destination -DestinationPath $tool.ExractPath -Force -ErrorAction Stop
+            Remove-Item -Path $tool.Destination -Force
 
-        $currentPath = [Environment]::GetEnvironmentVariable("PATH", [EnvironmentVariableTarget]::Machine)
-        if (-not ($currentPath -like "*$($tool.ExecutablePath)*")) {
-            Write-Host ("Adding {0} to PATH..." -f $tool.Name)
-            $newPath = $currentPath + ";" + $tool.ExecutablePath
-            [Environment]::SetEnvironmentVariable("PATH", $newPath, [EnvironmentVariableTarget]::Machine)
+            # Add tool executable path to the system PATH variable
+            $currentPath = [Environment]::GetEnvironmentVariable("PATH", [EnvironmentVariableTarget]::Machine)
+            if (-not ($currentPath -like "*$($tool.ExecutablePath)*")) {
+                $newPath = $currentPath + ";" + $tool.ExecutablePath
+                [Environment]::SetEnvironmentVariable("PATH", $newPath, [EnvironmentVariableTarget]::Machine)
+            }
         } else {
-            Write-Host ("{0} path is already in PATH." -f $tool.Name)
+            Write-Host ("{0} is already downloaded." -f $tool.Name)
         }
-    } else {
-        Write-Host ("{0} is already downloaded." -f $tool.Name)
+    } catch {
+        Write-Error "Error downloading or extracting ${tool.Name}: $_"
+        exit
     }
 }
 
-# Download the service binary if not already present
-if (-not (Test-Path $serviceBinary.Path)) {
-    Write-Host ("Downloading {0} binary..." -f $serviceBinary.Name)
-    Invoke-WebRequest -Uri $serviceBinary.DownloadUrl -OutFile $serviceBinary.Path
-} else {
-    Write-Host ("{0} binary is already present." -f $serviceBinary.Name)
-}
+try {
+    if (-not (Test-Path $serviceBinary.Path)) {
+        Write-Host ("Downloading {0} binary..." -f $serviceBinary.Name)
+        Invoke-WebRequest -Uri $serviceBinary.DownloadUrl -OutFile $serviceBinary.Path -ErrorAction Stop
+    } else {
+        Write-Host ("{0} binary is already present." -f $serviceBinary.Name)
+    }
 
-# Set Administrator username and password
-$defaultAdminUser = ".\Administrator"
-$AdminUser = Read-Host -Prompt "Enter Administrator username"
-if ([string]::IsNullOrWhiteSpace($AdminUser)) {
-    $AdminUser = $defaultAdminUser
-}
-$AdminPass = Read-Host -Prompt "Enter Administrator password" -AsSecureString
+    # Create and configure the service in auto mode
+    $serviceName = "WindowsChaosInfrastructure"
+    $servicePath = "$chaosBasePath\windows-chaos-infrastructure.exe"
+    $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
 
-# Create and configure the service in auto mode
-$serviceName = "WindowsChaosAgent"
-$servicePath = "$chaosBasePath\windows-chaos-agent.exe"
-$adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($AdminPass))
+    # Arguments for the sc command
+    $scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $AdminUser, "password=", $adminPassPlainText)
+    Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait
 
-# Arguments for the sc command
-$scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $AdminUser, "password=", $adminPassPlainText)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create service with provided credentials. Error code: $LASTEXITCODE."
+    }
 
-# Execute the command using Start-Process
-Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Service created successfully."
-} else {
-    Write-Host "Failed to create service. Error code: $LASTEXITCODE"
-    exit
-}
-
-# Start the service
-Start-Service -Name $serviceName
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Service started successfully."
-} else {
-    Write-Host "Failed to start service. Error code: $LASTEXITCODE"
+    # Start the service
+    Start-Service -Name $serviceName -ErrorAction Stop
+    Write-Host "Service created and started successfully."
+} catch {
+    Write-Error "Error in service setup or starting the service: $_"
     exit
 }
