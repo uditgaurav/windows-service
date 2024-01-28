@@ -36,7 +36,7 @@ type ScriptParams struct {
 
 const (
     logDirectory      = "C:\\HCE"
-    logFileName       = "windows-chaos-agent"
+    logFileName       = "windows-chaos-infra"
     logFileMaxSizeMB  = 5
     logFileMaxBackups = 3
 )
