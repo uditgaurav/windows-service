@@ -36,7 +36,7 @@ type ScriptParams struct {
 
 const (
     logDirectory      = "C:\\HCE"
-    logFileName       = "windows-chaos-infra"
+    logFileName       = "windows-chaos-infrastructure"
     logFileMaxSizeMB  = 5
     logFileMaxBackups = 3
 )
@@ -160,7 +160,7 @@ func main() {
         return
     }
 
-    elog, err = eventlog.Open("windows-chaos-agent")
+    elog, err = eventlog.Open("windows-chaos-infrastructure")
     if err != nil {
         logs("Service", fmt.Sprintf("failed to open event log: %v", err), true, 1)
         return
@@ -195,6 +195,13 @@ func logs(source, message string, isError bool, eventID uint32) {
         fileLogger.Errorf("%d: %s", eventID, fullMessage)
     } else {
         fileLogger.Infof("%d: %s", eventID, fullMessage)
+    }
+    if elog != nil {
+        if isError {
+            elog.Error(eventID, fullMessage)
+        } else {
+            elog.Info(eventID, fullMessage)
+        }
     }
 }
 
