@@ -5,7 +5,6 @@ import (
 	"embed"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"time"
@@ -144,11 +143,11 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 func main() {
     var err error
-    fileLogger, logFile, err := CreateNewLogger(logFileName)
-    if err != nil {
-        log.Fatalf("failed to create file logger: %v", err)
-    }
-    defer logFile.Close()
+    // fileLogger, logFile, err := CreateNewLogger(logFileName)
+    // if err != nil {
+    //     log.Fatalf("failed to create file logger: %v", err)
+    // }
+    // defer logFile.Close()
 
     isIntSess, err := svc.IsAnInteractiveSession()
     if err != nil {
