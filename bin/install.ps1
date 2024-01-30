@@ -1,112 +1,201 @@
- param (
+param (
     [string]$AdminUser = ".\Administrator",
     [Parameter(Mandatory=$true)]
-    [string]$AdminPass
+    [string]$AdminPass,
+    [string]$InfraId = "",
+    [string]$AccessKey = "",
+    [string]$ServerUrl = "",
+    [string]$LogDirectory = "C:\var\log\windows-chaos-infrastructure",
+    [int]$TaskPollIntervalSeconds = 5,
+    [int]$TaskUpdateIntervalSeconds = 5,
+    [int]$UpdateRetries = 5,
+    [int]$UpdateRetryIntervalSeconds = 5,
+    [int]$ChaosInfraLivenessUpdateIntervalSeconds = 5,
+    [int]$ChaosInfraLogFileMaxSizeMb = 5,
+    [int]$ChaosInfraLogFileMaxBackups = 2,
+    [string]$CustomTlsCertificate = "",
+    [string]$HttpProxy = "",
+    [string]$HttpClientTimeout = "30s"
 )
 
-# Convert the password from a plain string to a secure string
-$secureAdminPass = ConvertTo-SecureString $AdminPass -AsPlainText -Force
+# Converts plain password to a secure string
+function ConvertTo-SecureStringWrapper {
+    param(
+        [string]$password
+    )
+    return ConvertTo-SecureString $password -AsPlainText -Force
+}
 
-try {
-    # Check for administrative privileges
+# Checks if the script is running with administrative privileges
+function Check-AdminPrivileges {
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
     if (-not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw "This script requires administrative privileges."
     }
-
-    # Base path for all dependencies
-    $chaosBasePath = "C:\HCE"
-
-    # Create base path directory if it doesn't exist
-    if (-not (Test-Path $chaosBasePath)) {
-        New-Item -Path $chaosBasePath -ItemType Directory
-    }
-} catch {
-    Write-Error "Error in setting up base path: $_"
-    exit
 }
 
-# Dependencies, service binary, and their names
-$tools = @(
-    @{
-        Name = "clumsy";
-        DownloadUrl = "https://github.com/jagt/clumsy/releases/download/0.3/clumsy-0.3-win64-a.zip";
-        Destination = "$chaosBasePath\clumsy.zip";
-        ExecutablePath = "$chaosBasePath\clumsy";
-        ExractPath = "$chaosBasePath\clumsy"
-    },
-    @{
-        Name = "diskspd";
-        DownloadUrl = "https://github.com/microsoft/diskspd/releases/download/v2.1/DiskSpd.ZIP";
-        Destination = "$chaosBasePath\diskspd.zip";
-        ExecutablePath = "$chaosBasePath\diskspd\amd64";
-        ExractPath = "$chaosBasePath\diskspd"
-    },
-    @{
-        Name = "Testlimit";
-        DownloadUrl = "https://download.sysinternals.com/files/Testlimit.zip";
-        Destination = "$chaosBasePath\testlimit.zip";
-        ExecutablePath = "$chaosBasePath\Testlimit";
-        ExractPath = "$chaosBasePath\Testlimit"
-    }
-)
-
-$serviceBinary = @{
-    Name = "windows-chaos-infrastructure";
-    DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/bin/windows-chaos-infrastructure.exe";
-    Path = "$chaosBasePath\windows-chaos-infrastructure.exe"
-}
-
-foreach ($tool in $tools) {
-    try {
-        if (-not (Test-Path $tool.Destination)) {
-            Write-Host ("Downloading {0}..." -f $tool.Name)
-            Invoke-WebRequest -Uri $tool.DownloadUrl -OutFile $tool.Destination -ErrorAction Stop
-            Write-Host ("Extracting {0}..." -f $tool.Name)
-            Expand-Archive -Path $tool.Destination -DestinationPath $tool.ExractPath -Force -ErrorAction Stop
-            Remove-Item -Path $tool.Destination -Force
-
-            # Add tool executable path to the system PATH variable
-            $currentPath = [Environment]::GetEnvironmentVariable("PATH", [EnvironmentVariableTarget]::Machine)
-            if (-not ($currentPath -like "*$($tool.ExecutablePath)*")) {
-                $newPath = $currentPath + ";" + $tool.ExecutablePath
-                [Environment]::SetEnvironmentVariable("PATH", $newPath, [EnvironmentVariableTarget]::Machine)
-            }
-        } else {
-            Write-Host ("{0} is already downloaded." -f $tool.Name)
-        }
-    } catch {
-        Write-Error "Error downloading or extracting ${tool.Name}: $_"
-        exit
+# Creates a directory if it does not exist
+function Create-DirectoryIfNotExists {
+    param(
+        [string]$Path
+    )
+    if (-not (Test-Path $Path)) {
+        New-Item -Path $Path -ItemType Directory
     }
 }
 
-try {
-    if (-not (Test-Path $serviceBinary.Path)) {
-        Write-Host ("Downloading {0} binary..." -f $serviceBinary.Name)
-        Invoke-WebRequest -Uri $serviceBinary.DownloadUrl -OutFile $serviceBinary.Path -ErrorAction Stop
+# Downloads and extracts a specified tool
+function Download-AndExtractTool {
+    param(
+        [hashtable]$tool
+    )
+    if (-not (Test-Path $tool.Destination)) {
+        Write-Host ("Downloading {0}..." -f $tool.Name)
+        Invoke-WebRequest -Uri $tool.DownloadUrl -OutFile $tool.Destination -ErrorAction Stop
+        Write-Host ("Extracting {0}..." -f $tool.Name)
+        Expand-Archive -Path $tool.Destination -DestinationPath $tool.ExtractPath -Force -ErrorAction Stop
+        Remove-Item -Path $tool.Destination -Force
+        Update-SystemPath $tool.ExecutablePath
     } else {
-        Write-Host ("{0} binary is already present." -f $serviceBinary.Name)
+        Write-Host ("{0} is already downloaded." -f $tool.Name)
     }
+}
 
-    # Create and configure the service in auto mode
-    $serviceName = "WindowsChaosInfrastructure"
-    $servicePath = "$chaosBasePath\windows-chaos-infrastructure.exe"
-    $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
+# Updates the system PATH environment variable
+function Update-SystemPath {
+    param(
+        [string]$NewPath
+    )
+    $currentPath = [Environment]::GetEnvironmentVariable("PATH", [EnvironmentVariableTarget]::Machine)
+    if (-not ($currentPath -like "*$NewPath*")) {
+        $newPath = $currentPath + ";" + $NewPath
+        [Environment]::SetEnvironmentVariable("PATH", $newPath, [EnvironmentVariableTarget]::Machine)
+    }
+}
 
-    # Arguments for the sc command
-    $scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $AdminUser, "password=", $adminPassPlainText)
+# Downloads a service binary
+function Download-ServiceBinary {
+    param(
+        [hashtable]$binary
+    )
+    if (-not (Test-Path $binary.Path)) {
+        Write-Host ("Downloading {0} binary..." -f $binary.Name)
+        Invoke-WebRequest -Uri $binary.DownloadUrl -OutFile $binary.Path -ErrorAction Stop
+    } else {
+        Write-Host ("{0} binary is already present." -f $binary.Name)
+    }
+}
+
+# Creates a configuration file
+function Create-ConfigFile {
+    param(
+        [string]$ConfigPath
+    )
+    $configContent = @"
+infraID: "$InfraId"
+accessKey: "$AccessKey"
+serverURL: "$ServerUrl"
+logDirectory: "$LogDirectory"
+taskPollIntervalSeconds: $TaskPollIntervalSeconds
+taskUpdateIntervalSeconds: $TaskUpdateIntervalSeconds
+updateRetries: $UpdateRetries
+updateRetryIntervalSeconds: $UpdateRetryIntervalSeconds
+chaosInfraLivenessUpdateIntervalSeconds: $ChaosInfraLivenessUpdateIntervalSeconds
+chaosInfraLogFileMaxSizeMB: $ChaosInfraLogFileMaxSizeMb
+chaosInfraLogFileMaxBackups: $ChaosInfraLogFileMaxBackups
+customTLSCertificate: "$CustomTlsCertificate"
+httpProxy: "$HttpProxy"
+httpClientTimeout: "$HttpClientTimeout"
+"@
+
+    New-Item -Path $ConfigPath -ItemType File -Force | Out-Null
+    $configContent | Set-Content -Path $ConfigPath
+    Write-Host "Config file created at $ConfigPath"
+}
+
+# Creates and starts a Windows service
+function Create-Service {
+    param(
+        [string]$serviceName,
+        [string]$servicePath,
+        [string]$adminUser,
+        [string]$adminPassPlainText
+    )
+    $scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $adminUser, "password=", $adminPassPlainText)
     Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to create service with provided credentials. Error code: $LASTEXITCODE."
     }
 
-    # Start the service
     Start-Service -Name $serviceName -ErrorAction Stop
     Write-Host "Service created and started successfully."
+}
+
+$secureAdminPass = ConvertTo-SecureStringWrapper -password $AdminPass
+
+try {
+
+    # Ensuring the script runs with administrative privileges
+    Check-AdminPrivileges
+
+    # Base path setup for chaos engineering tools
+    $chaosBasePath = "C:\HCE"
+    Create-DirectoryIfNotExists -Path $chaosBasePath
+
+    # Define tools to download and extract
+    $tools = @(
+        @{
+            Name = "clumsy";
+            DownloadUrl = "https://github.com/jagt/clumsy/releases/download/0.3/clumsy-0.3-win64-a.zip";
+            Destination = "$chaosBasePath\clumsy.zip";
+            ExecutablePath = "$chaosBasePath\clumsy";
+            ExtractPath = "$chaosBasePath\clumsy"
+        },
+        @{
+            Name = "diskspd";
+            DownloadUrl = "https://github.com/microsoft/diskspd/releases/download/v2.1/DiskSpd.ZIP";
+            Destination = "$chaosBasePath\diskspd.zip";
+            ExecutablePath = "$chaosBasePath\diskspd\amd64";
+            ExtractPath = "$chaosBasePath\diskspd"
+        },
+        @{
+            Name = "Testlimit";
+            DownloadUrl = "https://download.sysinternals.com/files/Testlimit.zip";
+            Destination = "$chaosBasePath\testlimit.zip";
+            ExecutablePath = "$chaosBasePath\Testlimit";
+            ExtractPath = "$chaosBasePath\Testlimit"
+        }
+    )
+
+    # Define the service binary to download
+    $serviceBinary = @{
+        Name = "windows-chaos-infrastructure";
+        DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/bin/windows-chaos-infrastructure.exe";
+        Path = "$chaosBasePath\windows-chaos-infrastructure.exe"
+    }
+
+    # Download and extract each tool
+    foreach ($tool in $tools) {
+        Download-AndExtractTool -tool $tool
+    }
+
+    # Download the service binary
+    Download-ServiceBinary -binary $serviceBinary
+
+    # Create the configuration file
+    $configPath = "$chaosBasePath\config.yaml"
+    Create-ConfigFile -ConfigPath $configPath
+
+    # Create and start the Windows service
+    $serviceName = "WindowsChaosInfrastructure"
+    $servicePath = "$chaosBasePath\windows-chaos-infrastructure.exe"
+    $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
+
+    Create-Service -serviceName $serviceName -servicePath $servicePath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
+
 } catch {
-    Write-Error "Error in service setup or starting the service: $_"
+    Write-Error "Error occurred: $_"
     exit
 }
