@@ -31,7 +31,7 @@ try {
         }
     }
 
-    if (-not Is-ServiceStopped -serviceName $ServiceName) {
+    if (-not (Is-ServiceStopped -serviceName $ServiceName)) {
         Write-Host "Service '$ServiceName' did not stop within the timeout period."
     } else {
         Write-Host "Service '$ServiceName' is removed. Proceeding."
