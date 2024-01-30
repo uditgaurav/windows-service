@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"embed"
 	"fmt"
@@ -43,63 +44,81 @@ func init() {
 	wg = sync.WaitGroup{}
 }
 
-
-
 func executePowerShellScript(ctx context.Context, scriptName string, params ScriptParams) error {
-	logs("PowerShell", "script execution started", false, 1)
+    logs("PowerShell", "script execution started", false, 1)
 
-	psScript, err := scripts.ReadFile("scripts/" + scriptName)
-	if err != nil {
-		return fmt.Errorf("failed to read embedded script: %w", err)
-	}
+    psScript, err := scripts.ReadFile("scripts/" + scriptName)
+    if err != nil {
+        return fmt.Errorf("failed to read embedded script: %w", err)
+    }
 
-	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
+    tmpFile, err := ioutil.TempFile("", "script-*.ps1")
+    if err != nil {
+        return fmt.Errorf("failed to create temporary file: %w", err)
+    }
+    defer os.Remove(tmpFile.Name())
 
-	if _, err := tmpFile.Write(psScript); err != nil {
-		return fmt.Errorf("failed to write to temporary file: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temporary file: %w", err)
-	}
+    if _, err := tmpFile.Write(psScript); err != nil {
+        return fmt.Errorf("failed to write to temporary file: %w", err)
+    }
+    if err := tmpFile.Close(); err != nil {
+        return fmt.Errorf("failed to close temporary file: %w", err)
+    }
 
-	var cmd *exec.Cmd
-	var cmdArgs []string
+    var cmd *exec.Cmd
+    var cmdArgs []string
 
-	switch scriptName {
-	case "memory-stress.ps1":
+    switch scriptName {
+    case "memory-stress.ps1":
+        cmdArgs = []string{
+            tmpFile.Name(),
+            "-MemoryInPercentage", fmt.Sprint(params.MemoryPercentage),
+            "-PathOfTestlimit", params.Path,
+            "-Duration", fmt.Sprint(params.Duration),
+        }
 
-		cmdArgs = []string{
-			tmpFile.Name(),
-			"-MemoryInPercentage", fmt.Sprint(params.MemoryPercentage),
-			"-PathOfTestlimit", params.Path,
-			"-Duration", fmt.Sprint(params.Duration),
-		}
+    case "cpu-stress.ps1":
+        cmdArgs = []string{
+            tmpFile.Name(),
+            "-CPUPercentage", fmt.Sprint(params.CPUPercentage),
+            "-CPU", fmt.Sprint(params.CPU),
+            "-Duration", fmt.Sprint(params.Duration),
+        }
 
-	case "cpu-stress.ps1":
+    default:
+        return fmt.Errorf("unknown script name: %s", scriptName)
+    }
 
-		cmdArgs = []string{
-			tmpFile.Name(),
-			"-CPUPercentage", fmt.Sprint(params.CPUPercentage),
-			"-CPU", fmt.Sprint(params.CPU),
-			"-Duration", fmt.Sprint(params.Duration),
-		}
+    cmd = exec.CommandContext(ctx, "powershell", cmdArgs...)
 
-	default:
-		return fmt.Errorf("unknown script name: %s", scriptName)
-	}
-	cmd = exec.CommandContext(ctx, "powershell", cmdArgs...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error running script: %w; output: %s", err, string(output))
-	}
-	logs("PowerShell", fmt.Sprintf("script output: %s", output), false, 1)
+    // Setting up a scanner to read the script output in real-time
+    cmdReader, err := cmd.StdoutPipe()
+    if err != nil {
+        return fmt.Errorf("error creating StdoutPipe for Cmd: %w", err)
+    }
 
-	return nil
+    scanner := bufio.NewScanner(cmdReader)
+    go func() {
+        for scanner.Scan() {
+            logChannel <- fmt.Sprintf("[PowerShell] %s", scanner.Text())
+        }
+    }()
+
+    err = cmd.Start()
+    if err != nil {
+        logChannel <- fmt.Sprintf("[PowerShell] error starting script: %s", err.Error())
+        return fmt.Errorf("error starting script: %w", err)
+    }
+
+    err = cmd.Wait()
+    if err != nil {
+        logChannel <- fmt.Sprintf("[PowerShell] error running script: %s", err.Error())
+        return fmt.Errorf("error running script: %w", err)
+    }
+
+    return nil
 }
+
 
 // Execute is the method called by the Windows service manager
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
