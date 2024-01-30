@@ -45,78 +45,96 @@ func init() {
 }
 
 func executePowerShellScript(ctx context.Context, scriptName string, params ScriptParams) error {
-	logs("PowerShell", "script execution started", false, 1)
+    logs("PowerShell", "script execution started", false, 1)
 
-	psScript, err := scripts.ReadFile("scripts/" + scriptName)
-	if err != nil {
-		return fmt.Errorf("failed to read embedded script: %w", err)
-	}
+    // Read and prepare the PowerShell script
+    psScript, err := scripts.ReadFile("scripts/" + scriptName)
+    if err != nil {
+        return fmt.Errorf("failed to read embedded script: %w", err)
+    }
 
-	tmpFile, err := ioutil.TempFile("", "script-*.ps1")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
+    tmpFile, err := ioutil.TempFile("", "script-*.ps1")
+    if err != nil {
+        return fmt.Errorf("failed to create temporary file: %w", err)
+    }
+    defer os.Remove(tmpFile.Name())
 
-	if _, err := tmpFile.Write(psScript); err != nil {
-		return fmt.Errorf("failed to write to temporary file: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temporary file: %w", err)
-	}
+    if _, err := tmpFile.Write(psScript); err != nil {
+        return fmt.Errorf("failed to write to temporary file: %w", err)
+    }
+    if err := tmpFile.Close(); err != nil {
+        return fmt.Errorf("failed to close temporary file: %w", err)
+    }
 
-	var cmd *exec.Cmd
-	var cmdArgs []string
+    var cmd *exec.Cmd
+    var cmdArgs []string
 
-	switch scriptName {
-	case "memory-stress.ps1":
-		cmdArgs = []string{
-			tmpFile.Name(),
-			"-MemoryInPercentage", fmt.Sprint(params.MemoryPercentage),
-			"-PathOfTestlimit", params.Path,
-			"-Duration", fmt.Sprint(params.Duration),
-		}
+    // Determine the script to execute and its parameters
+    switch scriptName {
+    case "memory-stress.ps1":
+        cmdArgs = []string{
+            tmpFile.Name(),
+            "-MemoryInPercentage", fmt.Sprint(params.MemoryPercentage),
+            "-PathOfTestlimit", params.Path,
+            "-Duration", fmt.Sprint(params.Duration),
+        }
+    case "cpu-stress.ps1":
+        cmdArgs = []string{
+            tmpFile.Name(),
+            "-CPUPercentage", fmt.Sprint(params.CPUPercentage),
+            "-CPU", fmt.Sprint(params.CPU),
+            "-Duration", fmt.Sprint(params.Duration),
+        }
+    default:
+        return fmt.Errorf("unknown script name: %s", scriptName)
+    }
 
-	case "cpu-stress.ps1":
-		cmdArgs = []string{
-			tmpFile.Name(),
-			"-CPUPercentage", fmt.Sprint(params.CPUPercentage),
-			"-CPU", fmt.Sprint(params.CPU),
-			"-Duration", fmt.Sprint(params.Duration),
-		}
+    // Prepare the PowerShell command with context
+    cmd = exec.CommandContext(ctx, "powershell", cmdArgs...)
 
-	default:
-		return fmt.Errorf("unknown script name: %s", scriptName)
-	}
+    // Setting up a scanner to read the script output in real-time
+    cmdReader, err := cmd.StdoutPipe()
+    if err != nil {
+        return fmt.Errorf("error creating StdoutPipe for Cmd: %w", err)
+    }
 
-	cmd = exec.CommandContext(ctx, "powershell", cmdArgs...)
+    scanner := bufio.NewScanner(cmdReader)
+    go func() {
+        for scanner.Scan() {
+            logChannel <- fmt.Sprintf("[PowerShell] %s", scanner.Text())
+        }
+    }()
 
-	// Setting up a scanner to read the script output in real-time
-	cmdReader, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("error creating StdoutPipe for Cmd: %w", err)
-	}
+    // Start the PowerShell script
+    err = cmd.Start()
+    if err != nil {
+        logChannel <- fmt.Sprintf("[PowerShell] error starting script: %s", err.Error())
+        return fmt.Errorf("error starting script: %w", err)
+    }
 
-	scanner := bufio.NewScanner(cmdReader)
-	go func() {
-		for scanner.Scan() {
-			logChannel <- fmt.Sprintf("[PowerShell] %s", scanner.Text())
-		}
-	}()
+    // Wait for the command to finish in a separate goroutine
+    errChan := make(chan error, 1)
+    go func() {
+        errChan <- cmd.Wait()
+    }()
 
-	err = cmd.Start()
-	if err != nil {
-		logChannel <- fmt.Sprintf("[PowerShell] error starting script: %s", err.Error())
-		return fmt.Errorf("error starting script: %w", err)
-	}
+    select {
+    case <-ctx.Done():
+        // Context is cancelled, kill the process
+        if killErr := cmd.Process.Kill(); killErr != nil {
+            logChannel <- fmt.Sprintf("[PowerShell] error killing script: %s", killErr.Error())
+        }
+        <-errChan // Wait for cmd.Wait to return
+        return ctx.Err()
+    case err := <-errChan:
+        // Command completed
+        if err != nil {
+            logChannel <- fmt.Sprintf("[PowerShell] error running script: %s", err.Error())
+            return fmt.Errorf("error running script: %w", err)
+        }
+    }
 
-	err = cmd.Wait()
-	if err != nil {
-		logChannel <- fmt.Sprintf("[PowerShell] error running script: %s", err.Error())
-		return fmt.Errorf("error running script: %w", err)
-	}
-
-	return nil
+    return nil
 }
 
 // Execute is the method called by the Windows service manager
