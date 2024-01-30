@@ -123,10 +123,9 @@ function Create-Service {
         [string]$adminPassPlainText
     )
     $scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $adminUser, "password=", $adminPassPlainText)
-    Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create service with provided credentials. Error code: $LASTEXITCODE."
+    $process = Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        throw "Failed to create service with provided credentials. Exit code: $($process.ExitCode)"
     }
 
     Start-Service -Name $serviceName -ErrorAction Stop
