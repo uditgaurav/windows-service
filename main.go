@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -31,6 +33,17 @@ type ScriptParams struct {
 	Path             string
 	Duration         int
 }
+
+// Global variables
+var logChannel chan string
+var wg sync.WaitGroup
+
+func init() {
+	logChannel = make(chan string, 100)
+	wg = sync.WaitGroup{}
+}
+
+
 
 func executePowerShellScript(ctx context.Context, scriptName string, params ScriptParams) error {
 	logs("PowerShell", "script execution started", false, 1)
@@ -126,6 +139,10 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 }
 
 func main() {
+
+	wg.Add(1)
+	go fileLogger("C:\\HCE\\windows-chaos-infrastructure")
+
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		log.Fatalf("failed to determine if we are running in an interactive session: %v", err)
@@ -166,11 +183,32 @@ func isTestlimitAvailable() bool {
 	return true
 }
 
+func fileLogger(filePath string) {
+	defer wg.Done()
+
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("Failed to open log file: %v", err)
+	}
+	defer file.Close()
+
+	for logEntry := range logChannel {
+		if _, err := file.WriteString(logEntry + "\n"); err != nil {
+			log.Printf("Failed to write to log file: %v", err)
+		}
+	}
+}
+
 func logs(source, message string, isError bool, eventID uint32) {
 	fullMessage := fmt.Sprintf("[%s] %s", source, message)
+
+	// Send log to event log
 	if isError {
 		elog.Error(eventID, fullMessage)
 	} else {
 		elog.Info(eventID, fullMessage)
 	}
+
+	// Send log to file log channel
+	logChannel <- strings.ReplaceAll(fullMessage, "\n", " ")
 }
