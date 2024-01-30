@@ -160,7 +160,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 func main() {
 
 	wg.Add(1)
-	go fileLogger("C:\\HCE\\windows-chaos-infrastructure")
+	go fileLogger("C:\\HCE\\windows-chaos-infrastructure.txt")
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
