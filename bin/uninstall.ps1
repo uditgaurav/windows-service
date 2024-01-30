@@ -5,51 +5,41 @@ param (
     [int]$CheckIntervalSeconds = 10
 )
 
-# Function to stop and remove a Windows service
-function Stop-AndRemove-Service {
-    param(
+# Function to check if a service is stopped
+function Is-ServiceStopped {
+    param (
         [string]$serviceName
     )
-    Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-    sc.exe delete $serviceName
-    Write-Host "Service '$serviceName' stopped and removed successfully."
-}
-
-# Function to check if the service is removed
-function Is-ServiceRemoved {
-    param(
-        [string]$serviceName
-    )
-    return -not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)
+    $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    return ($service -eq $null) -or ($service.Status -eq 'Stopped')
 }
 
 try {
-    # Stop and remove the service
-    Stop-AndRemove-Service -serviceName $ServiceName
+    Write-Host "Stopping service '$ServiceName'..."
+    Stop-Service -Name $ServiceName -Force -ErrorAction Stop
 
-    # Wait for the specified timeout
-    $remainingTime = $TimeoutSeconds
-    while ($remainingTime -gt 0) {
-        Write-Host "Waiting for service '$ServiceName' to get to the stopped state ($remainingTime seconds remaining)..."
+    $timeRemaining = $TimeoutSeconds
+    while ($timeRemaining -gt 0) {
         Start-Sleep -Seconds $CheckIntervalSeconds
-        $remainingTime -= $CheckIntervalSeconds
+        $timeRemaining -= $CheckIntervalSeconds
 
-        # Check if the service is removed
-        if (Is-ServiceRemoved -serviceName $ServiceName) {
-            Write-Host "Service '$ServiceName' is removed. Proceeding."
+        if (Is-ServiceStopped -serviceName $ServiceName) {
+            Write-Host "Service '$ServiceName' stopped successfully."
             break
+        } else {
+            Write-Host "Waiting for service '$ServiceName' to get to the stopped state ($timeRemaining seconds remaining)..."
         }
     }
 
-    # Remove the service directory
-    if (Test-Path $ChaosBaseDirectory) {
+    if (-not Is-ServiceStopped -serviceName $ServiceName) {
+        Write-Host "Service '$ServiceName' did not stop within the timeout period."
+    } else {
+        Write-Host "Service '$ServiceName' is removed. Proceeding."
+        Write-Host "Removing directory '$ChaosBaseDirectory'..."
         Remove-Item -Path $ChaosBaseDirectory -Recurse -Force
         Write-Host "Directory '$ChaosBaseDirectory' removed successfully."
-    } else {
-        Write-Host "Directory '$ChaosBaseDirectory' does not exist."
     }
-
 } catch {
     Write-Error "Error occurred: $_"
-    exit 1
+    exit
 }

@@ -1,11 +1,17 @@
 # windows-service
 
-#### Command to run the install script
+#### Command to run the scripts
+
+- For `install.ps1`
 
 ```bash
 powershell -Command "& { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/uditgaurav/windows-service/master/bin/install.ps1' -OutFile 'install.ps1' -UseBasicParsing; .\install.ps1 -AdminPass 'Your Password' -InfraId 'YourInfraId' -AccessKey 'YourAccessKey' -ServerUrl 'YourServerUrl' -LogDirectory 'YourLogDirectory' -TaskPollIntervalSeconds 5 -TaskUpdateIntervalSeconds 5 -UpdateRetries 5 -UpdateRetryIntervalSeconds 5 -ChaosInfraLivenessUpdateIntervalSeconds 5 -ChaosInfraLogFileMaxSizeMb 5 -ChaosInfraLogFileMaxBackups 2 -CustomTlsCertificate 'YourCustomTlsCertificate' -HttpProxy 'YourHttpProxy' -HttpClientTimeout '30s' }"
 ```
+- For `uninstall.ps1`
 
+```bash
+powershell -Command "& { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/uditgaurav/windows-service/master/bin/uninstall.ps1' -OutFile 'uninstall.ps1' -UseBasicParsing; .\uninstall.ps1 -ServiceName 'WindowsChaosInfrastructure' -TimeoutSeconds 180 -ChaosBaseDirectory 'C:\HCE' -CheckIntervalSeconds 10 }"
+```
 #### Create Binary
 
 ```
