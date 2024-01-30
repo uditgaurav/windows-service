@@ -5,7 +5,7 @@ param (
     [string]$InfraId = "",
     [string]$AccessKey = "",
     [string]$ServerUrl = "",
-    [string]$LogDirectory = "C:\var\log\windows-chaos-infrastructure",
+    [string]$LogDirectory = "C:\HCE\windows-chaos-infrastructure",
     [int]$TaskPollIntervalSeconds = 5,
     [int]$TaskUpdateIntervalSeconds = 5,
     [int]$UpdateRetries = 5,
@@ -114,6 +114,16 @@ httpClientTimeout: "$HttpClientTimeout"
     Write-Host "Config file created at $ConfigPath"
 }
 
+# Function to create a log file
+function Create-LogFile {
+    param(
+        [string]$LogPath
+    )
+    if (-not (Test-Path $LogPath)) {
+        New-Item -Path $LogPath -ItemType File -Force
+    }
+}
+
 # Creates and starts a Windows service
 function Create-Service {
     param(
@@ -186,6 +196,10 @@ try {
     # Create the configuration file
     $configPath = "$chaosBasePath\config.yaml"
     Create-ConfigFile -ConfigPath $configPath
+
+    # Create a log file under the specified log directory
+    $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.log"
+    Create-LogFile -LogPath $logFilePath
 
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
