@@ -181,7 +181,7 @@ try {
     # Define the service binary to download
     $serviceBinary = @{
         Name = "windows-chaos-infrastructure";
-        DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/setup.3/windows-chaos-infrastructure.exe";
+        DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/setup.4/windows-chaos-infrastructure.exe";
         Path = "$chaosBasePath\windows-chaos-infrastructure.exe"
     }
 
