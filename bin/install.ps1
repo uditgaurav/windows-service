@@ -181,7 +181,7 @@ try {
     # Define the service binary to download
     $serviceBinary = @{
         Name = "windows-chaos-infrastructure";
-        DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/setup.1/windows-chaos-infrastructure.exe";
+        DownloadUrl = "https://github.com/uditgaurav/windows-service/raw/master/setup/windows-chaos-infrastructure.exe";
         Path = "$chaosBasePath\windows-chaos-infrastructure.exe"
     }
 
@@ -198,7 +198,7 @@ try {
     Create-ConfigFile -ConfigPath $configPath
 
     # Create a log file under the specified log directory
-    $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.log"
+    $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.txt"
     Create-LogFile -LogPath $logFilePath
 
     # Create and start the Windows service
