@@ -18,6 +18,20 @@ param (
     [string]$HttpClientTimeout = "30s"
 )
 
+# Additional function to accept EULA for Testlimit
+function Accept-TestlimitEULA {
+    $eulaRegistryPath = "HKCU:\Software\Sysinternals\Testlimit"
+    $eulaAcceptedKey = "EulaAccepted"
+    $eulaAcceptedValue = 1
+
+    if (-not (Test-Path $eulaRegistryPath)) {
+        New-Item -Path $eulaRegistryPath -Force | Out-Null
+    }
+
+    Set-ItemProperty -Path $eulaRegistryPath -Name $eulaAcceptedKey -Value $eulaAcceptedValue
+    Write-Host "Testlimit EULA acceptance configured in registry."
+}
+
 # Converts plain password to a secure string
 function ConvertTo-SecureStringWrapper {
     param(
@@ -142,12 +156,44 @@ function Create-Service {
     Write-Host "Service created and started successfully."
 }
 
+function Log-Message {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Message,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("INFO", "WARNING", "ERROR")]
+        [string]$Level = "INFO",
+
+        [Parameter(Mandatory=$false)]
+        [string]$LogFile
+    )
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "$timestamp [$Level] $Message"
+
+    # Print to console
+    switch ($Level) {
+        "INFO" { Write-Host $logMessage -ForegroundColor Cyan }
+        "WARNING" { Write-Host $logMessage -ForegroundColor Yellow }
+        "ERROR" { Write-Host $logMessage -ForegroundColor Red }
+    }
+
+    # Append to log file if specified
+    if ($LogFile) {
+        Add-Content -Path $LogFile -Value $logMessage
+    }
+}
+
 $secureAdminPass = ConvertTo-SecureStringWrapper -password $AdminPass
 
 try {
 
     # Ensuring the script runs with administrative privileges
     Check-AdminPrivileges
+
+    # Accept Testlimit EULA
+    Accept-TestlimitEULA
 
     # Base path setup for chaos engineering tools
     $chaosBasePath = "C:\HCE"
@@ -210,5 +256,6 @@ try {
 
 } catch {
     Write-Error "Error occurred: $_"
+    Log-Message -Message "Error occurred: $_" -Level "ERROR" -LogFile $logFilePath
     exit
 }
