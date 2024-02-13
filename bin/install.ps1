@@ -18,18 +18,14 @@ param (
     [string]$HttpClientTimeout = "30s"
 )
 
-# Additional function to accept EULA for Testlimit
+# Accept the Testlimit EULA
 function Accept-TestlimitEULA {
-    $eulaRegistryPath = "HKCU:\Software\Sysinternals\Testlimit"
-    $eulaAcceptedKey = "EulaAccepted"
-    $eulaAcceptedValue = 1
+    $testlimitPath = "$chaosBasePath\Testlimit\testlimit64.exe" # Adjust based on actual path and executable name
+    $arguments = "/accepteula /m 1" # Assuming '/m 1' specifies minimal memory usage, adjust if necessary
 
-    if (-not (Test-Path $eulaRegistryPath)) {
-        New-Item -Path $eulaRegistryPath -Force | Out-Null
-    }
-
-    Set-ItemProperty -Path $eulaRegistryPath -Name $eulaAcceptedKey -Value $eulaAcceptedValue
-    Write-Host "Testlimit EULA acceptance configured in registry."
+    Write-Host "Accepting Testlimit EULA..."
+    Start-Process -FilePath $testlimitPath -ArgumentList $arguments -NoNewWindow -Wait
+    Write-Host "Testlimit EULA accepted."
 }
 
 # Converts plain password to a secure string
@@ -192,9 +188,6 @@ try {
     # Ensuring the script runs with administrative privileges
     Check-AdminPrivileges
 
-    # Accept Testlimit EULA
-    Accept-TestlimitEULA
-
     # Base path setup for chaos engineering tools
     $chaosBasePath = "C:\HCE"
     Create-DirectoryIfNotExists -Path $chaosBasePath
@@ -235,6 +228,9 @@ try {
     foreach ($tool in $tools) {
         Download-AndExtractTool -tool $tool
     }
+
+    # Accept Testlimit EULA
+    Accept-TestlimitEULA
 
     # Download the service binary
     Download-ServiceBinary -binary $serviceBinary
