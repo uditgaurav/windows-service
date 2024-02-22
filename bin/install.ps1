@@ -240,7 +240,7 @@ try {
     Create-ConfigFile -ConfigPath $configPath
 
     # Create a log file under the specified log directory
-    $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.txt"
+    $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.log"
     Create-LogFile -LogPath $logFilePath
 
     # Create and start the Windows service

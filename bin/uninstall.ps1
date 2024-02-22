@@ -1,45 +1,69 @@
-param (
-    [string]$ServiceName = "WindowsChaosInfrastructure",
-    [int]$TimeoutSeconds = 180,
-    [string]$ChaosBaseDirectory = "C:\HCE",
-    [int]$CheckIntervalSeconds = 10
+param(
+    [string]$chaosBasePath = "C:\HCE",
+    [int]$waitTime = 180,
+    [int]$delay = 2,
+    [string]$ChaosServiceName = "WindowsChaosInfrastructure",
+
 )
 
-# Function to check if a service is stopped
-function Is-ServiceStopped {
-    param (
-        [string]$serviceName
+function Stop-ServiceWithTimeout {
+    param(
+        [string]$serviceName,
+        [int]$timeoutSeconds,
+        [int]$delaySeconds
     )
+
     $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-    return ($service -eq $null) -or ($service.Status -eq 'Stopped')
+    if ($service -eq $null) {
+        Write-Host "Service '$serviceName' not found."
+        return $false
+    }
+
+    if ($service.Status -eq 'Stopped') {
+        Write-Host "Service '$serviceName' is already stopped."
+        return $true
+    }
+
+    Write-Host "Stopping service '$serviceName'..."
+    Stop-Service -Name $serviceName -Force
+
+    $elapsed = 0
+    while ($service.Status -ne 'Stopped' -and $elapsed -lt $timeoutSeconds) {
+        Start-Sleep -Seconds $delaySeconds
+        $elapsed += $delaySeconds
+        $service.Refresh()
+        Write-Host "Service '$serviceName' is $($service.Status)..."
+    }
+
+    if ($service.Status -eq 'Stopped') {
+        Write-Host "Service '$serviceName' stopped successfully."
+        return $true
+    } else {
+        Write-Host "Service '$serviceName' failed to stop within the timeout period."
+        return $false
+    }
 }
 
-try {
-    Write-Host "Stopping service '$ServiceName'..."
-    Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+function Remove-ChaosDirectory {
+    param(
+        [string]$path
+    )
 
-    $timeRemaining = $TimeoutSeconds
-    while ($timeRemaining -gt 0) {
-        Start-Sleep -Seconds $CheckIntervalSeconds
-        $timeRemaining -= $CheckIntervalSeconds
-
-        if (Is-ServiceStopped -serviceName $ServiceName) {
-            Write-Host "Service '$ServiceName' stopped successfully."
-            break
-        } else {
-            Write-Host "Waiting for service '$ServiceName' to get to the stopped state ($timeRemaining seconds remaining)..."
-        }
-    }
-
-    if (-not (Is-ServiceStopped -serviceName $ServiceName)) {
-        Write-Host "Service '$ServiceName' did not stop within the timeout period."
+    if (Test-Path -Path $path) {
+        Write-Host "Removing chaos directory '$path'..."
+        Remove-Item -Path $path -Recurse -Force
+        Write-Host "Chaos directory removed."
     } else {
-        Write-Host "Service '$ServiceName' is removed. Proceeding."
-        Write-Host "Removing directory '$ChaosBaseDirectory'..."
-        Remove-Item -Path $ChaosBaseDirectory -Recurse -Force
-        Write-Host "Directory '$ChaosBaseDirectory' removed successfully."
+        Write-Host "Chaos directory '$path' not found."
     }
-} catch {
-    Write-Error "Error occurred: $_"
-    exit
+}
+
+$serviceName = $ChaosServiceName
+
+# Stop the service with a timeout
+if (Stop-ServiceWithTimeout -serviceName $serviceName -timeoutSeconds $waitTime -delaySeconds $delay) {
+    # Remove the chaos directory
+    Remove-ChaosDirectory -path $chaosBasePath
+} else {
+    Write-Host "Failed to stop service '$serviceName' within the specified timeout. Manual intervention may be required."
 }
