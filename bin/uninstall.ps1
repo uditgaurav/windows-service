@@ -1,5 +1,5 @@
 param(
-    [string]$chaosBasePath = "C:\HCE",
+    [string]$chaosBasePath = "C:\\HCE",
     [int]$waitTime = 180,
     [int]$delay = 2,
     [string]$ChaosServiceName = "WindowsChaosInfrastructure",
