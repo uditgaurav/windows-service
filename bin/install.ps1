@@ -5,7 +5,7 @@ param (
     [string]$InfraId = "",
     [string]$AccessKey = "",
     [string]$ServerUrl = "",
-    [string]$LogDirectory = "C:\HCE\windows-chaos-infrastructure",
+    [string]$LogDirectory = "C:\\HCE",
     [int]$TaskPollIntervalSeconds = 5,
     [int]$TaskUpdateIntervalSeconds = 5,
     [int]$UpdateRetries = 5,
