@@ -134,6 +134,35 @@ function Create-LogFile {
     }
 }
 
+# Grants the "Log on as a service" right to the specified user
+function Grant-LogOnAsService {
+    param(
+        [string]$User
+    )
+    $seceditPath = "C:\Windows\System32\secedit.exe"
+    $securityTemplate = "C:\Temp\security.inf"
+    $databasePath = "C:\Temp\security.sdb"
+    $logPath = "C:\Temp\secedit.log"
+
+    # Export current security settings
+    Start-Process -FilePath $seceditPath -ArgumentList "export /cfg $securityTemplate /log $logPath" -NoNewWindow -Wait
+
+    # Modify the security template to include the user for "Log on as a service"
+    $content = Get-Content -Path $securityTemplate
+    $newContent = $content -replace "SeServiceLogonRight = ", "SeServiceLogonRight = $User,"
+    Set-Content -Path $securityTemplate -Value $newContent
+
+    # Import the modified security settings
+    Start-Process -FilePath $seceditPath -ArgumentList "configure /db $databasePath /cfg $securityTemplate /log $logPath /areas USER_RIGHTS" -NoNewWindow -Wait
+
+    # Cleanup
+    Remove-Item -Path $securityTemplate -Force
+    Remove-Item -Path $databasePath -Force
+    Remove-Item -Path $logPath -Force
+
+    Write-Host "Granted 'Log on as a service' right to user: $User"
+}
+
 # Creates and starts a Windows service
 function Create-Service {
     param(
@@ -242,6 +271,9 @@ try {
     # Create a log file under the specified log directory
     $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.log"
     Create-LogFile -LogPath $logFilePath
+
+    # Grant the "Log on as a service" right to the specified user
+    Grant-LogOnAsService -User $AdminUser
 
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
