@@ -139,7 +139,8 @@ function Grant-LogOnAsService {
     param(
         [string]$User
     )
-
+    
+    $User = $User -replace '^\.\',''
     $userRight = "SeServiceLogonRight"
     try {
         $sid = ((New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier])).Value
