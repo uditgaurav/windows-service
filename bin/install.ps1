@@ -139,28 +139,29 @@ function Grant-LogOnAsService {
     param(
         [string]$User
     )
-    $seceditPath = "C:\Windows\System32\secedit.exe"
-    $tempDirectory = "C:\Temp"
-    Create-DirectoryIfNotExists -Path $tempDirectory
-    $securityTemplate = "$tempDirectory\security.inf"
-    $databasePath = "$tempDirectory\security.sdb"
-    $logPath = "$tempDirectory\secedit.log"
 
-    # Export current security settings
-    Start-Process -FilePath $seceditPath -ArgumentList "export /cfg $securityTemplate /log $logPath" -NoNewWindow -Wait
+    $userRight = "SeServiceLogonRight"
+    $sid = ((New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier])).Value
+    $definition = @{
+        IdentityReference = $sid
+        ActiveDirectoryRights = $userRight
+    }
 
-    # Modify the security template to include the user for "Log on as a service"
-    $content = Get-Content -Path $securityTemplate
-    $newContent = $content -replace "SeServiceLogonRight = ", "SeServiceLogonRight = $User,"
-    Set-Content -Path $securityTemplate -Value $newContent
+    try {
+        $userPrivilege = Get-Item "HKLM:\SYSTEM\CurrentControlSet\Services\secedit\cfg\rights" -ErrorAction Stop
+    } catch {
+        New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\secedit\cfg" -Name "rights" -Force | Out-Null
+        $userPrivilege = Get-Item "HKLM:\SYSTEM\CurrentControlSet\Services\secedit\cfg\rights" -ErrorAction Stop
+    }
 
-    # Import the modified security settings
-    Start-Process -FilePath $seceditPath -ArgumentList "configure /db $databasePath /cfg $securityTemplate /log $logPath /areas USER_RIGHTS" -NoNewWindow -Wait
+    $currentValue = $userPrivilege.GetValue($userRight, $null)
+    if ($currentValue -ne $null) {
+        $newSid = $currentValue + ",$sid"
+    } else {
+        $newSid = $sid
+    }
 
-    # Cleanup
-    Remove-Item -Path $securityTemplate -Force
-    Remove-Item -Path $databasePath -Force
-    Remove-Item -Path $logPath -Force
+    Set-ItemProperty -Path $userPrivilege.PSPath -Name $userRight -Value $newSid
 
     Write-Host "Granted 'Log on as a service' right to user: $User"
 }
