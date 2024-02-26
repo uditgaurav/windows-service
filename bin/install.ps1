@@ -137,10 +137,11 @@ function Create-LogFile {
 # Grants the "Log on as a service" right to the specified user
 function Grant-LogOnAsService {
     param(
-        [string]$User
+        [string]$User = Administrator
     )
     
-    $User = $User -replace '^\.\',''
+    # $User = $User -replace '^\.\', ''
+
     $userRight = "SeServiceLogonRight"
     try {
         $sid = ((New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier])).Value
