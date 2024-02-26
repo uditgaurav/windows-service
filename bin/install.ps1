@@ -141,7 +141,13 @@ function Grant-LogOnAsService {
     )
 
     $userRight = "SeServiceLogonRight"
-    $sid = ((New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier])).Value
+    try {
+        $sid = ((New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier])).Value
+    } catch {
+        Write-Error "Error occurred: Unable to translate user account '$User' to SID."
+        exit
+    }
+
     $definition = @{
         IdentityReference = $sid
         ActiveDirectoryRights = $userRight
