@@ -284,7 +284,8 @@ try {
     Create-LogFile -LogPath $logFilePath
 
     # Grant the "Log on as a service" right to the specified user
-    Grant-LogOnAsService -User $AdminUser
+    # Grant-LogOnAsService -User $AdminUser
+    Grant-LogOnAsService
 
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
