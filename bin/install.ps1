@@ -137,7 +137,7 @@ function Create-LogFile {
 # Grants the "Log on as a service" right to the specified user
 function Grant-LogOnAsService {
     param(
-        [string]$User = Administrator
+        [string]$User = "Administrator"
     )
     
     # $User = $User -replace '^\.\', ''
