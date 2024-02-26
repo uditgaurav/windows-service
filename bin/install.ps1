@@ -140,9 +140,11 @@ function Grant-LogOnAsService {
         [string]$User
     )
     $seceditPath = "C:\Windows\System32\secedit.exe"
-    $securityTemplate = "C:\Temp\security.inf"
-    $databasePath = "C:\Temp\security.sdb"
-    $logPath = "C:\Temp\secedit.log"
+    $tempDirectory = "C:\Temp"
+    Create-DirectoryIfNotExists -Path $tempDirectory
+    $securityTemplate = "$tempDirectory\security.inf"
+    $databasePath = "$tempDirectory\security.sdb"
+    $logPath = "$tempDirectory\secedit.log"
 
     # Export current security settings
     Start-Process -FilePath $seceditPath -ArgumentList "export /cfg $securityTemplate /log $logPath" -NoNewWindow -Wait
