@@ -5,7 +5,7 @@ param (
     [string]$InfraId = "",
     [string]$AccessKey = "",
     [string]$ServerUrl = "",
-    [string]$LogDirectory = "C:\\HCE",
+    [string]$LogDirectory = "C:\\HCE\Logs",
     [int]$TaskPollIntervalSeconds = 5,
     [int]$TaskUpdateIntervalSeconds = 5,
     [int]$UpdateRetries = 5,
@@ -20,11 +20,11 @@ param (
 
 # Accept the Testlimit EULA
 function Accept-TestlimitEULA {
-    $testlimitPath = "$chaosBasePath\Testlimit\testlimit64.exe" # Adjust based on actual path and executable name
-    $arguments = "/accepteula /m 1" # Assuming '/m 1' specifies minimal memory usage, adjust if necessary
+    $testlimitPath = "$chaosBasePath\Testlimit\testlimit64.exe"
+    $arguments = "/accepteula /m 1"
 
     Write-Host "Accepting Testlimit EULA..."
-    Start-Process -FilePath $testlimitPath -ArgumentList $arguments -NoNewWindow -Wait
+    Start-Process -FilePath $testlimitPath -ArgumentList $arguments -NoNewWindow -Wait -RedirectStandardOutput "null"
     Write-Host "Testlimit EULA accepted."
 }
 
