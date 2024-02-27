@@ -149,7 +149,6 @@ function Create-Service {
     $servicePath = "`"$serviceBinaryPath --LogDirectory $logDirectory --ConfigFilePath $configFilePath`""
 
     $scArgs = @("create", $serviceName, "binPath= ", $servicePath, "start= ", "auto", "obj= ", $adminUser, "password= ", $adminPassPlainText)
-    Write-Host "Executing command: sc $scArgs"
     $process = Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait -PassThru
     if ($process.ExitCode -ne 0) {
         throw "Failed to create service with provided credentials. Exit code: $($process.ExitCode)"
