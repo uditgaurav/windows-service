@@ -139,10 +139,14 @@ function Create-LogFile {
 function Create-Service {
     param(
         [string]$serviceName,
-        [string]$servicePath,
+        [string]$serviceBinaryPath,
+        [string]$chaosBasePath,
         [string]$adminUser,
         [string]$adminPassPlainText
     )
+    # Include the ChaosBasePath flag in the service binary's command line arguments
+    $servicePath = "$serviceBinaryPath --ChaosBasePath `"$chaosBasePath`""
+
     $scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $adminUser, "password=", $adminPassPlainText)
     $process = Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait -PassThru
     if ($process.ExitCode -ne 0) {
@@ -244,10 +248,11 @@ try {
 
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
-    $servicePath = "$ChaosBasePath\windows-chaos-infrastructure.exe"
+    $serviceBinaryPath = "$ChaosBasePath\windows-chaos-infrastructure.exe"
     $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
 
-    Create-Service -serviceName $serviceName -servicePath $servicePath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
+    Create-Service -serviceName $serviceName -serviceBinaryPath $serviceBinaryPath -chaosBasePath $ChaosBasePath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
+
 
 } catch {
     Write-Error "Error occurred: $_"
