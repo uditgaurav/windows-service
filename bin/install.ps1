@@ -6,6 +6,7 @@ param (
     [string]$AccessKey = "",
     [string]$ServerUrl = "",
     [string]$LogDirectory = "C:\\HCE\Logs",
+    [string]$ChaosBasePath = "C:\\HCE"
     [int]$TaskPollIntervalSeconds = 5,
     [int]$TaskUpdateIntervalSeconds = 5,
     [int]$UpdateRetries = 5,
@@ -20,7 +21,7 @@ param (
 
 # Accept the Testlimit EULA
 function Accept-TestlimitEULA {
-    $testlimitPath = "$chaosBasePath\Testlimit\testlimit64.exe"
+    $testlimitPath = "$ChaosBasePath\Testlimit\testlimit64.exe"
     $arguments = "/accepteula /m 1"
 
     Write-Host "Accepting Testlimit EULA..."
@@ -188,32 +189,30 @@ try {
     # Ensuring the script runs with administrative privileges
     Check-AdminPrivileges
 
-    # Base path setup for chaos engineering tools
-    $chaosBasePath = "C:\HCE"
-    Create-DirectoryIfNotExists -Path $chaosBasePath
+    Create-DirectoryIfNotExists -Path $ChaosBasePath
 
     # Define tools to download and extract
     $tools = @(
         @{
             Name = "clumsy";
             DownloadUrl = "https://github.com/jagt/clumsy/releases/download/0.3/clumsy-0.3-win64-a.zip";
-            Destination = "$chaosBasePath\clumsy.zip";
-            ExecutablePath = "$chaosBasePath\clumsy";
-            ExtractPath = "$chaosBasePath\clumsy"
+            Destination = "$ChaosBasePath\clumsy.zip";
+            ExecutablePath = "$ChaosBasePath\clumsy";
+            ExtractPath = "$ChaosBasePath\clumsy"
         },
         @{
             Name = "diskspd";
             DownloadUrl = "https://github.com/microsoft/diskspd/releases/download/v2.1/DiskSpd.ZIP";
-            Destination = "$chaosBasePath\diskspd.zip";
-            ExecutablePath = "$chaosBasePath\diskspd\amd64";
-            ExtractPath = "$chaosBasePath\diskspd"
+            Destination = "$ChaosBasePath\diskspd.zip";
+            ExecutablePath = "$ChaosBasePath\diskspd\amd64";
+            ExtractPath = "$ChaosBasePath\diskspd"
         },
         @{
             Name = "Testlimit";
             DownloadUrl = "https://download.sysinternals.com/files/Testlimit.zip";
-            Destination = "$chaosBasePath\testlimit.zip";
-            ExecutablePath = "$chaosBasePath\Testlimit";
-            ExtractPath = "$chaosBasePath\Testlimit"
+            Destination = "$ChaosBasePath\testlimit.zip";
+            ExecutablePath = "$ChaosBasePath\Testlimit";
+            ExtractPath = "$ChaosBasePath\Testlimit"
         }
     )
 
@@ -221,7 +220,7 @@ try {
     $serviceBinary = @{
         Name = "windows-chaos-infrastructure";
         DownloadUrl = "https://github.com/uditgaurav/windows-service/releases/download/0.1.0/windows-chaos-infrastructure.exe";
-        Path = "$chaosBasePath\windows-chaos-infrastructure.exe"
+        Path = "$ChaosBasePath\windows-chaos-infrastructure.exe"
     }
 
     # Download and extract each tool
@@ -236,7 +235,7 @@ try {
     Download-ServiceBinary -binary $serviceBinary
 
     # Create the configuration file
-    $configPath = "$chaosBasePath\config.yaml"
+    $configPath = "$ChaosBasePath\config.yaml"
     Create-ConfigFile -ConfigPath $configPath
 
     # Create a log file under the specified log directory
@@ -245,7 +244,7 @@ try {
 
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
-    $servicePath = "$chaosBasePath\windows-chaos-infrastructure.exe"
+    $servicePath = "$ChaosBasePath\windows-chaos-infrastructure.exe"
     $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
 
     Create-Service -serviceName $serviceName -servicePath $servicePath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
