@@ -251,7 +251,7 @@ try {
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
     $serviceBinaryPath = "$ChaosBasePath\windows-chaos-infrastructure.exe"
-    $configPath = "$ChaosBasePath\config.json"
+    $configPath = "$ChaosBasePath\config.yaml"
     $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
 
     Create-Service -serviceName $serviceName -serviceBinaryPath $serviceBinaryPath -logDirectory $LogDirectory -configFilePath $configPath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
