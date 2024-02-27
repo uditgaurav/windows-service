@@ -193,20 +193,20 @@ try {
 
     # Define tools to download and extract
     $tools = @(
-        @{
-            Name = "clumsy";
-            DownloadUrl = "https://github.com/jagt/clumsy/releases/download/0.3/clumsy-0.3-win64-a.zip";
-            Destination = "$ChaosBasePath\clumsy.zip";
-            ExecutablePath = "$ChaosBasePath\clumsy";
-            ExtractPath = "$ChaosBasePath\clumsy"
-        },
-        @{
-            Name = "diskspd";
-            DownloadUrl = "https://github.com/microsoft/diskspd/releases/download/v2.1/DiskSpd.ZIP";
-            Destination = "$ChaosBasePath\diskspd.zip";
-            ExecutablePath = "$ChaosBasePath\diskspd\amd64";
-            ExtractPath = "$ChaosBasePath\diskspd"
-        },
+        # @{
+        #     Name = "clumsy";
+        #     DownloadUrl = "https://github.com/jagt/clumsy/releases/download/0.3/clumsy-0.3-win64-a.zip";
+        #     Destination = "$ChaosBasePath\clumsy.zip";
+        #     ExecutablePath = "$ChaosBasePath\clumsy";
+        #     ExtractPath = "$ChaosBasePath\clumsy"
+        # },
+        # @{
+        #     Name = "diskspd";
+        #     DownloadUrl = "https://github.com/microsoft/diskspd/releases/download/v2.1/DiskSpd.ZIP";
+        #     Destination = "$ChaosBasePath\diskspd.zip";
+        #     ExecutablePath = "$ChaosBasePath\diskspd\amd64";
+        #     ExtractPath = "$ChaosBasePath\diskspd"
+        # },
         @{
             Name = "Testlimit";
             DownloadUrl = "https://download.sysinternals.com/files/Testlimit.zip";
