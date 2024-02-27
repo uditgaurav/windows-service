@@ -140,14 +140,16 @@ function Create-Service {
     param(
         [string]$serviceName,
         [string]$serviceBinaryPath,
-        [string]$chaosBasePath,
+        [string]$logDirectory,
+        [string]$configFilePath,
         [string]$adminUser,
         [string]$adminPassPlainText
     )
-    # Include the ChaosBasePath flag in the service binary's command line arguments
-    $servicePath = "$serviceBinaryPath --ChaosBasePath `"$chaosBasePath`""
+    # Include the logDirectory and ConfigFilePath flags in the service binary's command line arguments
+    $servicePath = "`"$serviceBinaryPath --LogDirectory $logDirectory --ConfigFilePath $configFilePath`""
 
-    $scArgs = @("create", $serviceName, "binPath=", $servicePath, "start=", "auto", "obj=", $adminUser, "password=", $adminPassPlainText)
+    $scArgs = @("create", $serviceName, "binPath= ", $servicePath, "start= ", "auto", "obj= ", $adminUser, "password= ", $adminPassPlainText)
+    Write-Host "Executing command: sc $scArgs"
     $process = Start-Process "sc" -ArgumentList $scArgs -NoNewWindow -Wait -PassThru
     if ($process.ExitCode -ne 0) {
         throw "Failed to create service with provided credentials. Exit code: $($process.ExitCode)"
@@ -249,9 +251,10 @@ try {
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
     $serviceBinaryPath = "$ChaosBasePath\windows-chaos-infrastructure.exe"
+    $configPath = "$ChaosBasePath\config.json"
     $adminPassPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureAdminPass))
 
-    Create-Service -serviceName $serviceName -serviceBinaryPath $serviceBinaryPath -chaosBasePath $ChaosBasePath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
+    Create-Service -serviceName $serviceName -serviceBinaryPath $serviceBinaryPath -logDirectory $LogDirectory -configFilePath $configPath -adminUser $AdminUser -adminPassPlainText $adminPassPlainText
 
 
 } catch {
