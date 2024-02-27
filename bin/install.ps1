@@ -134,46 +134,6 @@ function Create-LogFile {
     }
 }
 
-# Grants the "Log on as a service" right to the specified user
-function Grant-LogOnAsService {
-    param(
-        [string]$User = "Administrator"
-    )
-    
-    # $User = $User -replace '^\.\', ''
-
-    $userRight = "SeServiceLogonRight"
-    try {
-        $sid = ((New-Object System.Security.Principal.NTAccount($User)).Translate([System.Security.Principal.SecurityIdentifier])).Value
-    } catch {
-        Write-Error "Error occurred: Unable to translate user account '$User' to SID."
-        exit
-    }
-
-    $definition = @{
-        IdentityReference = $sid
-        ActiveDirectoryRights = $userRight
-    }
-
-    try {
-        $userPrivilege = Get-Item "HKLM:\SYSTEM\CurrentControlSet\Services\secedit\cfg\rights" -ErrorAction Stop
-    } catch {
-        New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\secedit\cfg" -Name "rights" -Force | Out-Null
-        $userPrivilege = Get-Item "HKLM:\SYSTEM\CurrentControlSet\Services\secedit\cfg\rights" -ErrorAction Stop
-    }
-
-    $currentValue = $userPrivilege.GetValue($userRight, $null)
-    if ($currentValue -ne $null) {
-        $newSid = $currentValue + ",$sid"
-    } else {
-        $newSid = $sid
-    }
-
-    Set-ItemProperty -Path $userPrivilege.PSPath -Name $userRight -Value $newSid
-
-    Write-Host "Granted 'Log on as a service' right to user: $User"
-}
-
 # Creates and starts a Windows service
 function Create-Service {
     param(
@@ -282,10 +242,6 @@ try {
     # Create a log file under the specified log directory
     $logFilePath = Join-Path -Path $LogDirectory -ChildPath "windows-chaos-infrastructure.log"
     Create-LogFile -LogPath $logFilePath
-
-    # Grant the "Log on as a service" right to the specified user
-    # Grant-LogOnAsService -User $AdminUser
-    Grant-LogOnAsService
 
     # Create and start the Windows service
     $serviceName = "WindowsChaosInfrastructure"
