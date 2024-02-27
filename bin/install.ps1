@@ -6,7 +6,7 @@ param (
     [string]$AccessKey = "",
     [string]$ServerUrl = "",
     [string]$LogDirectory = "C:\\HCE\Logs",
-    [string]$ChaosBasePath = "C:\\HCE"
+    [string]$ChaosBasePath = "C:\\HCE",
     [int]$TaskPollIntervalSeconds = 5,
     [int]$TaskUpdateIntervalSeconds = 5,
     [int]$UpdateRetries = 5,
