@@ -224,7 +224,7 @@ try {
     # Define the service binary to download
     $serviceBinary = @{
         Name = "windows-chaos-infrastructure";
-        DownloadUrl = "https://github.com/uditgaurav/windows-service/releases/download/0.1.0/windows-chaos-infrastructure.exe";
+        DownloadUrl = "https://app.harness.io/public/shared/tools/chaos/windows/1.32.0/windows-chaos-infrastructure.exe";
         Path = "$ChaosBasePath\windows-chaos-infrastructure.exe"
     }
 
