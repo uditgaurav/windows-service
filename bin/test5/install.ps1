@@ -301,7 +301,7 @@ try {
         }
     )
 
-    $ServiceBinaryVersion = "main"
+    $ServiceBinaryVersion = "1.45.0"
 
     # Determine the architecture of the system
     $architecture = if ([Environment]::Is64BitOperatingSystem) { "64" } else { "32" }
